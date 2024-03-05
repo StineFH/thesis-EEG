@@ -78,6 +78,9 @@ def runExperiment(
     
     ######################## Make Neptune Logger ############################
     #https://docs.neptune.ai/api/neptune/#init_run
+    
+    # neptune_token=os.getenv('NEPTUNE_API_TOKEN')
+
     neptune_logger = pl.loggers.NeptuneLogger(
         project="stinefh/thesis-EEG", 
         source_files=["benchmark_linear_model.py", 
