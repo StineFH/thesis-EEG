@@ -4,7 +4,6 @@ import torch
 import pytorch_lightning as pl 
 import torch.optim as optim
 import numpy as np
-# from torchmetrics.regression import R2Score
 
 class CosineWarmupScheduler(optim.lr_scheduler._LRScheduler):
     def __init__(self, optimizer, warmup, max_iters):
@@ -22,18 +21,6 @@ class CosineWarmupScheduler(optim.lr_scheduler._LRScheduler):
             lr_factor *= epoch * 1.0 / self.warmup
         return lr_factor
 
-# class ConstantScheduler(optim.lr_scheduler._LRScheduler):
-#     def __init__(self, optimizer, warmup, max_iters):
-#         self.warmup = warmup
-#         self.max_num_iters = max_iters
-#         super().__init__(optimizer)
-    
-#     def get_lr(self):
-#         return [base_lr for base_lr in self.base_lrs]
-
-# scheduler = optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.73)
-# scheduler = optim.lr_scheduler.CyclicLR(optimizer,base_lr=0.0001,max_lr=0.01,mode='triangular2')
-    
     
 class linearRegression(torch.nn.Module):
     def __init__(self, inputSize, outputSize):
@@ -45,7 +32,6 @@ class linearRegression(torch.nn.Module):
         return out
     
 
-
 class linearModel(pl.LightningModule):
     def __init__(self, lr, input_size, output_size, warmup=100, max_iters=1000):
         super().__init__()
@@ -54,7 +40,6 @@ class linearModel(pl.LightningModule):
 
         self.linear_regression = linearRegression(input_size, output_size)
         self.metric = torch.nn.MSELoss()
-        # self.r2score = R2Score()
         
     def forward(self, inputs):
         return self.linear_regression.forward(inputs)
@@ -71,11 +56,9 @@ class linearModel(pl.LightningModule):
         pred = self.linear_regression(XInput)
         loss = self.metric(pred, target)
         self.log("train_loss", loss, on_step=True, on_epoch=True, prog_bar=False, logger=True)
-        # self.log("lr", self.lr_scheduler.get_lr()[0], on_step=True, on_epoch=True, prog_bar=False, logger=True)
         self.log("lr", self.lr_scheduler.get_last_lr()[0], on_step=True, on_epoch=True, prog_bar=False, logger=True)
         
         if self.step % 100 == 0:
-            # print("Step: ", self.step, "Lr: ", self.lr_scheduler.get_lr()[0])
             print("Step: ", self.step, "Lr: ", self.lr_scheduler.get_last_lr()[0])
             print(loss)
         return loss
@@ -87,8 +70,6 @@ class linearModel(pl.LightningModule):
         preds = self.linear_regression(XInput)
         loss = self.metric(preds, target)
         self.log("val_loss", loss, on_step=False, on_epoch=True, prog_bar=False, logger=True)
-        # r2 = self.r2score(preds, target)
-        # self.log("val/epoch/r2", r2, on_step=False, on_epoch=True, prog_bar=False, logger=True)
     
         return loss
     
@@ -99,16 +80,6 @@ class linearModel(pl.LightningModule):
         self.lr_scheduler = CosineWarmupScheduler(optimizer, 
                                                   warmup=self.hparams.warmup, 
                                                   max_iters=self.hparams.max_iters)
-        
-        # self.lr_scheduler = ConstantScheduler(optimizer, 
-        #                                           warmup=self.hparams.warmup, 
-        #                                           max_iters=self.hparams.max_iters)
-        # self.lr_scheduler = optim.lr_scheduler.ExponentialLR(optimizer, 
-        #                                                       gamma=0.795)
-        # self.lr_scheduler = optim.lr_scheduler.CyclicLR(optimizer,base_lr=0.0001,
-        #                                                 max_lr=0.01,mode='triangular2',
-        #                                                 cycle_momentum =False)
-
         
         return {'optimizer': optimizer, "lr_scheduler": self.lr_scheduler}
     

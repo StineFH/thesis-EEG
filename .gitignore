@@ -161,6 +161,7 @@ cython_debug/
 
 #Neptune 
 /.neptune
+/lightning_logs
 
 #Saved models 
 /linear_model_snapshot

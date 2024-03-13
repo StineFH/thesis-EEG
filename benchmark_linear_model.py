@@ -8,6 +8,8 @@ from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 import data_utils4 as du
 from LinearModel import linearModel
 
+import csv
+
 pl.seed_everything(42, workers=True)
 
 
@@ -37,7 +39,12 @@ def runExperiment(
         valSub=0,
         beforePts=500,
         afterPts=500,
-        targetPts=100):
+        targetPts=100,
+        sessionIds = ['001', '002'], # i.e. only half the data in EESM19
+        limit_val = 100000, # Dataset size 
+        max_iters = 15000,
+        max_epochs = 1000,
+        warmup = 300):
 
     ####################### Make Datset and DataLoader ########################
     # simple scaling of input (to make it microvolt):
@@ -55,15 +62,15 @@ def runExperiment(
     subjectIds=mb.get_entity_vals(bidsPath,'subject', with_key=False)
     trainIds=subjectIds.copy()
     trainIds.pop(valSub)
-    trainPaths=du.returnFilePaths(bidsPath,trainIds,sessionIds=['001', '002']) # There is onlyone session in small dataset
-    valPaths=du.returnFilePaths(bidsPath,[subjectIds[valSub]],sessionIds=['001', '002'])
+    trainPaths=du.returnFilePaths(bidsPath,trainIds,sessionIds=sessionIds) # There is onlyone session in small dataset
+    valPaths=du.returnFilePaths(bidsPath,[subjectIds[valSub]],sessionIds=sessionIds)
     
     
     print('Loading training data')
     ds_train=du.EEG_dataset_from_paths(trainPaths, beforePts=beforePts,
                                        afterPts=afterPts,targetPts=targetPts, 
                                        channelIdxs=channelIdxs,preprocess=False,
-                                       limit=None #,transform=mytransform
+                                        limit=None,transform=mytransform
                                        )
     dl_train=torch.utils.data.DataLoader(ds_train, batch_size=batchSize, 
                                          shuffle=True, num_workers=8)
@@ -71,7 +78,7 @@ def runExperiment(
     print('Loading validation data, subject = ' + subjectIds[valSub])
     ds_val=du.EEG_dataset_from_paths(valPaths, beforePts=beforePts,afterPts=afterPts,
                                      targetPts=targetPts, channelIdxs=1,
-                                     preprocess=False,limit=100000 #,transform=mytransform
+                                     preprocess=False,limit=limit_val,transform=mytransform
                                      )
     dl_val=torch.utils.data.DataLoader(ds_val, batch_size=batchSize,
                                        num_workers=8)
@@ -79,9 +86,10 @@ def runExperiment(
     ######################## Make Neptune Logger ############################
     #https://docs.neptune.ai/api/neptune/#init_run
     
-    # neptune_token=os.getenv('NEPTUNE_API_TOKEN')
+    NEPTUNE_API_TOKEN = 'eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiJkZTFjOGZiMS01NDFjLTRlMzktOTBiYS0yNDcxM2UzNWM2ZTYifQ=='
 
     neptune_logger = pl.loggers.NeptuneLogger(
+        api_key = NEPTUNE_API_TOKEN,
         project="stinefh/thesis-EEG", 
         source_files=["benchmark_linear_model.py", 
                       "data_utils4.py", 
@@ -94,23 +102,35 @@ def runExperiment(
     neptune_logger.log_hyperparams({'lr schedular':"CosineWarmup"})
     
     ################## make Model, Earlystop, Trainer and Fit #################
-    lin_model = linearModel(0.001,beforePts+afterPts, targetPts, warmup=300, 
-                            max_iters=15000) 
+    lin_model = linearModel(0.001,beforePts+afterPts, targetPts, warmup=warmup, 
+                            max_iters=max_iters) 
     early_stopping = EarlyStopping(monitor="val_loss", min_delta=0.00,
                                    patience=25, verbose=False, mode="min")
     
     trainer = pl.Trainer(logger=neptune_logger,
-                         devices="auto",
-                         accelerator="auto", 
+                         accelerator='gpu', devices=1, # Devices = number of gpus 
                          callbacks=[early_stopping],
-                         max_epochs=1000,# 1000
-                         log_every_n_steps=50,
-                         gpus=1
-                         )
+                         max_epochs=max_epochs,
+                         log_every_n_steps=10)
     
     trainer.fit(lin_model, dl_train, dl_val)
     
+    # Save best model
     torch.save(lin_model.state_dict(), 'linear_model_snapshot/' + neptune_logger.version + '.pt')
+    
+    # Calculate average absolute prediction error 
+    lin_model.load_state_dict(torch.load("./linear_model_snapshot/" + neptune_logger.version + '.pt'))
+    pred_error = []
+    for _ in range(100000/batchSize):
+        x, y = next(iter(dl_val))
+        x1, x2= x 
+        XInput = torch.cat((x1, x2),dim=1)
+        pred = lin_model(XInput)[0] 
+        pred_error.append(abs(pred-y))
+    
+    with open("./lin_model_prediction_error/" + neptune_logger.version, 'w', newline='') as myfile:
+        wr = csv.writer(myfile)
+        wr.writerow(pred_error)
     
     neptune_logger.finalize('Success')
     neptune_logger.experiment.stop()
@@ -122,11 +142,25 @@ def runExperiment(
 targetPts=100
 beforePts=500
 afterPts=500
+sessionIds = ['001', '002'] # i-e. only half the data in EESM19
+limit = 100000 # Dataset size - only changes it for validation - change in function to change for train
+batchSize= 10000
+channelIdxs=[1,19,23]
+valSub=0
+max_iters = 1000
+max_epochs = 100
+warmup = 50
 
-trainer,net=runExperiment(batchSize= 10000,
-                          channelIdxs=[1,19,23],
-                          valSub=0, 
+
+trainer,net=runExperiment(batchSize= batchSize,
+                          channelIdxs=channelIdxs,
+                          valSub=valSub, 
                           targetPts=targetPts,
                           beforePts=beforePts, 
-                          afterPts=afterPts)
+                          afterPts=afterPts,
+                          sessionIds = sessionIds, # i.e. only half the data in EESM19
+                          limit_val = limit, # Dataset size 
+                          max_iters = max_iters,
+                          max_epochs = max_epochs,
+                          warmup = warmup)
 
