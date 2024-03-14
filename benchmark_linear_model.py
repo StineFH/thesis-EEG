@@ -8,7 +8,6 @@ from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 import data_utils4 as du
 from LinearModel import linearModel
 
-import csv
 
 pl.seed_everything(42, workers=True)
 
@@ -121,16 +120,13 @@ def runExperiment(
     # Calculate average absolute prediction error 
     lin_model.load_state_dict(torch.load("./linear_model_snapshot/" + neptune_logger.version + '.pt'))
     pred_error = []
-    for _ in range(100000/batchSize):
+    for _ in range(int(100000/batchSize)):
         x, y = next(iter(dl_val))
-        x1, x2= x 
-        XInput = torch.cat((x1, x2),dim=1)
-        pred = lin_model(XInput)[0] 
-        pred_error.append(abs(pred-y))
+        pred = lin_model(x)
+        pred_er = abs(pred-y)
+        pred_error.append(torch.mean(pred_er, dim=0).detach().numpy()) # Add mean predicion over samples 
     
-    with open("./lin_model_prediction_error/" + neptune_logger.version, 'w', newline='') as myfile:
-        wr = csv.writer(myfile)
-        wr.writerow(pred_error)
+    torch.save(pred_error, './lin_model_prediction_error/' + neptune_logger.version + '.pt')
     
     neptune_logger.finalize('Success')
     neptune_logger.experiment.stop()
@@ -147,9 +143,9 @@ limit = 100000 # Dataset size - only changes it for validation - change in funct
 batchSize= 10000
 channelIdxs=[1,19,23]
 valSub=0
-max_iters = 1000
-max_epochs = 100
-warmup = 50
+max_iters = 3300
+max_epochs = 300
+warmup = 300
 
 
 trainer,net=runExperiment(batchSize= batchSize,

@@ -42,7 +42,9 @@ class linearModel(pl.LightningModule):
         self.metric = torch.nn.MSELoss()
         
     def forward(self, inputs):
-        return self.linear_regression.forward(inputs)
+        x1, x2 = inputs 
+        XInput = torch.cat((x1, x2),dim=1)
+        return self.linear_regression.forward(XInput)
     
     def on_train_start(self):
         self.logger.log_hyperparams(self.hparams)
@@ -51,9 +53,7 @@ class linearModel(pl.LightningModule):
         self.step = self.step + 1
         
         inputs, target = batch
-        x1, x2= inputs # x1 before and x2 after window
-        XInput = torch.cat((x1, x2),dim=1)
-        pred = self.linear_regression(XInput)
+        pred = self.forward(inputs)
         loss = self.metric(pred, target)
         self.log("train_loss", loss, on_step=True, on_epoch=True, prog_bar=False, logger=True)
         self.log("lr", self.lr_scheduler.get_last_lr()[0], on_step=True, on_epoch=True, prog_bar=False, logger=True)
@@ -65,9 +65,8 @@ class linearModel(pl.LightningModule):
     
     def validation_step(self, batch, batch_idx):
         inputs, target = batch
-        x1, x2= inputs # x1 before and x2 after window
-        XInput = torch.cat((x1, x2),dim=1)
-        preds = self.linear_regression(XInput)
+
+        preds = self.forward(inputs)
         loss = self.metric(preds, target)
         self.log("val_loss", loss, on_step=False, on_epoch=True, prog_bar=False, logger=True)
     
