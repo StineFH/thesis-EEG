@@ -66,8 +66,9 @@ def getAbsPredictionError(
     
     model.load_state_dict(torch.load(model_path + model_name))
     pred_error = []
+    iter_dl_val = iter(dl_val)
     for _ in range(int(100000/batchSize)):
-        x, y = next(iter(dl_val))
+        x, y = next(iter_dl_val)
         
         pred = model(x) 
         pred_er = abs(pred-y)
@@ -76,31 +77,32 @@ def getAbsPredictionError(
     torch.save(pred_error, error_path + model_name)
 
 ###############################################################################
-model_name = 'THES-32.pt'
-# model_path = './linear_model_snapshot/'
-# error_path = './lin_model_prediction_error/'
-model_path = './transformer_model_snapshot/'
-error_path = './transformer_prediction_error/'
+model_name = 'THES-34.pt'
+model_path = './linear_model_snapshot/'
+error_path = './lin_model_prediction_error/'
+# model_path = './transformer_model_snapshot/'
+# error_path = './transformer_prediction_error/'
 
-# lin_model = linearModel(0.001,beforePts+afterPts, targetPts, warmup=warmup,
-#                         max_iters=max_iters) 
+lin_model = linearModel(lr=0.001,input_size=500+500, output_size=100, 
+                        warmup=300,
+                        max_iters=3300) 
 
-transf_model = Transformer(
-    context_size=500+500, 
-    context_block=50,
-    output_dim=100,
-    model_dim=50,
-    num_heads=1,
-    num_layers=1,
-    lr=0.001,
-    warmup=300,
-    max_iters=3300,
-    dropout=0.0,
-    input_dropout=0.0,
-    mask = None) 
+# transf_model = Transformer(
+#     context_size=500+500, 
+#     context_block=50,
+#     output_dim=100,
+#     model_dim=50,
+#     num_heads=1,
+#     num_layers=1,
+#     lr=0.001,
+#     warmup=300,
+#     max_iters=3300,
+#     dropout=0.0,
+#     input_dropout=0.0,
+#     mask = None) 
 
 getAbsPredictionError(
-    transf_model,
+    lin_model,
     model_name=model_name,
     model_path = model_path,
     error_path = error_path,

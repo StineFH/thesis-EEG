@@ -131,8 +131,9 @@ def runExperiment(
     # Calculate average absolute prediction error 
     transf_model.load_state_dict(torch.load("./transformer_model_snapshot/" + neptune_logger.version + '.pt'))
     pred_error = []
+    iter_dl_val = iter(dl_val)
     for _ in range(int(100000/batchSize)):
-        x, y = next(iter(dl_val))
+        x, y = next(iter_dl_val)
         pred = transf_model(x) 
         pred_er = abs(pred-y)
         pred_error.append(torch.mean(pred_er, dim=0).detach().numpy()) # Add mean predicion over samples 

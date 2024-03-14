@@ -108,24 +108,26 @@ beforePts=500
 afterPts=500
 targetPts=100
 channelIds=[1,19,23]
-# model_path = './linear_model_snapshot/THES-30.pt'
-model_path = './transformer_model_snapshot/THES-32.pt'
+model_path = './linear_model_snapshot/THES-34.pt'
+# model_path = './transformer_model_snapshot/THES-32.pt'
 
-# model = linearModel(0.001, beforePts+afterPts, targetPts)
-model = Transformer(
-        context_size=500+500, 
-        context_block=50,
-        output_dim=100,
-        model_dim=50,
-        num_heads=1,
-        num_layers=1,
-        lr=0.001,
-        warmup=300,
-        max_iters=3300,
-        dropout=0.0,
-        input_dropout=0.0,
-        mask = None) 
-file_name = './plots/target-pred-THES32-sub001'
+model = linearModel(lr=0.001,input_size=500+500, output_size=100, 
+                        warmup=300,
+                        max_iters=3300) 
+# model = Transformer(
+#         context_size=500+500, 
+#         context_block=50,
+#         output_dim=100,
+#         model_dim=50,
+#         num_heads=1,
+#         num_layers=1,
+#         lr=0.001,
+#         warmup=300,
+#         max_iters=3300,
+#         dropout=0.0,
+#         input_dropout=0.0,
+#         mask = None) 
+file_name = './plots/target-pred-THES34-sub001'
 
 visualizeTargetPrediction(model, model_path, path, subjectId, sessionId, 
                           beforePts, afterPts, targetPts, channelIds, 
@@ -134,7 +136,7 @@ visualizeTargetPrediction(model, model_path, path, subjectId, sessionId,
 ####################### Plot Absolute Prediction Error ########################
 
 
-filename = 'THES-30'
+filename = 'THES-34'
 abs_pred_error = torch.load("./lin_model_prediction_error/"  + filename+ '.pt')
 # abs_pred_error = torch.load("./transformer_prediction_error/"  + filename + '.pt')
 
