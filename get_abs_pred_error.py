@@ -4,7 +4,7 @@ import torch
 
 import data_utils4 as du
 from LinearModel import linearModel
-from TransformerModel import Transformer
+from BasicTransformerModel import Transformer
 
 cuda=torch.device('cpu')
 

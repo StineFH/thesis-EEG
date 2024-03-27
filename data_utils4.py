@@ -6,20 +6,6 @@ import numpy as np
 from joblib import Parallel, delayed, cpu_count
 import mne_bids as mb
 
-#import sys
-
-# def directory_spider(input_dir, path_pattern="", file_pattern="", maxResults=500):
-#     file_paths = []
-#     if not os.path.exists(input_dir):
-#         raise FileNotFoundError("Could not find path: %s"%(input_dir))
-#     for dirpath, dirnames, filenames in os.walk(input_dir):
-#         if re.search(path_pattern, dirpath):
-#             file_list = [item for item in filenames if re.search(file_pattern,item)]
-#             file_path_list = [os.path.join(dirpath, item) for item in file_list]
-#             file_paths += file_path_list
-#             if len(file_paths) > maxResults:
-#                 break
-#     return file_paths[0:maxResults]
 
 def returnFilePaths(bidsDir,subjectIds=None,sessionIds=None,taskIds=None):
     """
@@ -72,7 +58,7 @@ def returnFilePaths(bidsDir,subjectIds=None,sessionIds=None,taskIds=None):
 
 class EEG_dataset_from_paths(torch.utils.data.Dataset):
     def __init__(self, bidsPaths, beforePts, afterPts, targetPts, channelIdxs=1, 
-                 transform=None,preprocess=False,limit=None):
+                 transform=None,preprocess=False,limit=None, train_size = 100000):
         self.transform = transform
         self.beforePts = beforePts
         self.afterPts = afterPts
@@ -81,6 +67,7 @@ class EEG_dataset_from_paths(torch.utils.data.Dataset):
         self.nChannels=len(channelIdxs) if isinstance(channelIdxs, (list,tuple,range)) else 1
         self.file_paths=[str(fp) for fp in bidsPaths]
         self.limit=limit #if 
+        self.train_size = train_size
 
         maxFilesLoaded=self.determineMemoryCapacity()
 
@@ -177,7 +164,7 @@ class EEG_dataset_from_paths(torch.utils.data.Dataset):
             numel=self.limit
         else:
             # numel=int(np.sum([raw.n_times for raw in self.raws])*self.nChannels/2)
-            numel=100000
+            numel=self.train_size
         return numel
 
     def __getitem__(self, idx):

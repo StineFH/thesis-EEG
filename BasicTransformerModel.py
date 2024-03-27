@@ -29,15 +29,6 @@ class CosineWarmupScheduler(optim.lr_scheduler._LRScheduler):
             lr_factor *= epoch * 1.0 / self.warmup
         return lr_factor
 
-class FeedForwardNetwork(nn.Module):
-    def __init__(self, d_model, dim_feedforward, dropout):
-        super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(d_model, dim_feedforward),
-            # nn.Dropout(dropout), # Original model does not have dropout here 
-            nn.PReLU(),
-            nn.Linear(dim_feedforward, d_model),
-        )
 
     def forward(self, x):
         return self.net(x)
@@ -58,11 +49,13 @@ class EncoderBlock(nn.Module):
         # Attention layer - uses same dimension for k, q and v. 
         self.self_attn = nn.MultiheadAttention(embed_dim=input_dim,
                                                num_heads=num_heads,
-                                               # dropout=dropout, #original doesnt have dropout here 
                                                batch_first=True)
 
         # Two-layer MLP
-        self.linear_net = FeedForwardNetwork(input_dim, dim_ff, dropout)
+        self.linear_net = nn.Sequential(nn.Linear(input_dim, dim_ff),
+                                        nn.ReLU(),
+                                        nn.Linear(dim_ff, input_dim)
+                                        )
 
         # Layers to apply in between the main layers
         self.norm1 = nn.LayerNorm(input_dim)
@@ -178,11 +171,11 @@ class Transformer(pl.LightningModule):
             nn.Flatten(),
             nn.Dropout(self.hparams.dropout),
             nn.Linear(transFormerOutSize,self.hparams.output_dim),
-            nn.PReLU(),
+            nn.ReLU(),
             nn.Linear(self.hparams.output_dim,self.hparams.output_dim),
-            nn.PReLU(),
+            nn.ReLU(),
             nn.Linear(self.hparams.output_dim,self.hparams.output_dim)
-        )
+            )
         
     @torch.no_grad()
     def get_attention_maps(self, x, mask=None, add_positional_encoding=True):

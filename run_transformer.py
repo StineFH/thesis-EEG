@@ -6,7 +6,7 @@ import pytorch_lightning as pl
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 
 import data_utils4 as du
-from TransformerModel import Transformer
+from BasicTransformerModel import Transformer
 
 
 pl.seed_everything(42, workers=True)
@@ -40,13 +40,14 @@ def runExperiment(
         afterPts=500,
         targetPts=100,
         sessionIds = ['001', '002'], # i.e. only half the data in EESM19
-        limit_val = 100000, # Dataset size 
+        limit_val = 100000, # Validation dataset size 
+        train_size = 300000, # train dataset size 
         max_iters = 15000,
         max_epochs = 1000,
         warmup = 300):
 
     ####################### Make Datset and DataLoader ########################
-    # simple scaling of input (to make it microvolt):
+    # simple scaling of input (to make it microvolt instead of volt):
     # transform = lambda x: x*1e6
     def mytransform(raw):
         raw.filter(0.1, 40)
@@ -69,7 +70,8 @@ def runExperiment(
     ds_train=du.EEG_dataset_from_paths(trainPaths, beforePts=beforePts,
                                        afterPts=afterPts,targetPts=targetPts, 
                                        channelIdxs=channelIdxs,preprocess=False,
-                                        limit=None,transform=mytransform
+                                        limit=None,train_size = train_size,
+                                        transform=mytransform
                                        )
     dl_train=torch.utils.data.DataLoader(ds_train, batch_size=batchSize, 
                                          shuffle=True, num_workers=8)
@@ -106,13 +108,13 @@ def runExperiment(
         context_block=50,
         output_dim=targetPts,
         model_dim=50,
-        num_heads=1,
-        num_layers=1,
+        num_heads = 1,
+        num_layers = 1,
         lr=0.001,
         warmup=warmup,
         max_iters=max_iters,
-        dropout=0.0,
-        input_dropout=0.0,
+        dropout=0.2,
+        input_dropout=0.2,
         mask = None) 
     early_stopping = EarlyStopping(monitor="val_loss", min_delta=0.00,
                                    patience=25, verbose=False, mode="min")
@@ -151,11 +153,12 @@ targetPts=100
 beforePts=500
 afterPts=500
 sessionIds = ['001', '002'] # i-e. only about half the data in EESM19
-limit = 100000 # Dataset size - only changes it for validation - change in function to change for train
+limit = 100000 # Validation dataset size
+train_size = 300000 # Train dataset size 
 batchSize= 10000
 channelIdxs=[1,19,23]
 valSub=0
-max_iters = 3300
+max_iters = 9200
 max_epochs = 300
 warmup = 300
 
@@ -168,6 +171,7 @@ trainer,net=runExperiment(batchSize= batchSize,
                           afterPts=afterPts,
                           sessionIds = sessionIds, # i.e. only half the data in EESM19
                           limit_val = limit, # Dataset size 
+                          train_size = train_size,
                           max_iters = max_iters,
                           max_epochs = max_epochs,
                           warmup = warmup)

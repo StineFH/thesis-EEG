@@ -1,7 +1,9 @@
 # Import raw EEG data 
 import mne_bids as mb
+import mne 
 import torch
 import pytorch_lightning as pl
+import numpy as np 
 
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 
@@ -16,39 +18,64 @@ def mytransform(raw):
 
 pl.seed_everything(42, workers=True)
 
-batchSize= 1000
+batchSize= 10000
 channelIdxs=[1,19,23] 
 valSub=0
 beforePts=500
 afterPts=500
 targetPts=100
 
-
-# ROOT = 'Y:\\NTdata\\BIDS\\EESM17\\'
-# setFilePaths = mb.find_matching_paths(root=ROOT,extensions='.set',datatypes='eeg')
-# file = setFilePaths[0]
-# raw=mne.io.read_raw_eeglab(file, preload=True)
-# raw.plot()
-
 bidsPath= 'Y:\\NTdata\\BIDS\\EESM17\\'
 subjectIds=mb.get_entity_vals(bidsPath,'subject', with_key=False)
 trainIds=subjectIds.copy()
 trainIds.pop(valSub)
 
-for _ in range(5): # Remove some files 
+for _ in range(6): # Remove some files 
     trainIds.pop(0)
+
+# Test import 
+# temp=mb.BIDSPath(root=bidsPath,subject='001',session='001',task='sleep',datatype='eeg',extension='.set',check=False)
+# tempRaw=mne.io.read_raw_eeglab(str(temp), preload=True,verbose=False)
+# tempRaw.plot()
+
+# channelsToExclude=(1- np.isin(range(0,tempRaw.info['nchan']),channelIdxs)).nonzero()[0].astype('int')
+# channelsToExclude=np.asarray(tempRaw.ch_names)[channelsToExclude]
+# tempRaw.drop_channels(channelsToExclude)
+# tempRaw.plot()
+
+# tempRaw.filter(0.1, 40)
+# tempRaw.plot()
+
+# tempRaw._data=tempRaw._data*1e6
+# tempRaw.plot()
+
+# if mytransform:
+#     tempRaw = mytransform(tempRaw)
+    
+# tempRaw.plot()
+
+# setFilePaths = mb.find_matching_paths(root=ROOT,extensions='.set',datatypes='eeg')
+# file = setFilePaths[0]
+# raw=mne.io.read_raw_eeglab(file, preload=True)
+# raw.plot()
 
 trainPaths=du.returnFilePaths(bidsPath,trainIds,sessionIds=['001']) # There is onlyone session in small dataset
 valPaths=du.returnFilePaths(bidsPath,[subjectIds[valSub]],sessionIds=['001'])
 
 print('Loading training data')
-ds_train=du.EEG_dataset_from_paths(trainPaths, beforePts=beforePts,afterPts=afterPts,targetPts=targetPts, channelIdxs=channelIdxs,preprocess=False,limit=None,transform=mytransform)
+ds_train=du.EEG_dataset_from_paths(trainPaths, beforePts=beforePts,
+                                   afterPts=afterPts,targetPts=targetPts, 
+                                   channelIdxs=channelIdxs,preprocess=False,
+                                    limit=None,train_size = 100000,
+                                   transform=mytransform)
 dl_train=torch.utils.data.DataLoader(ds_train, batch_size=batchSize, shuffle=True)
 
 print('Loading validation data, subject = ' + subjectIds[valSub])
-ds_val=du.EEG_dataset_from_paths(valPaths, beforePts=beforePts,afterPts=afterPts,targetPts=targetPts, channelIdxs=1,preprocess=False,limit=100000,transform=mytransform)
+ds_val=du.EEG_dataset_from_paths(valPaths, beforePts=beforePts,afterPts=afterPts,
+                                 targetPts=targetPts, channelIdxs=1,
+                                 preprocess=False,limit=100000,
+                                 transform=mytransform)
 dl_val=torch.utils.data.DataLoader(ds_val, batch_size=batchSize)
-
 
 ######################### Looking into data structure #########################
 # Look at dataset function
@@ -150,7 +177,7 @@ trainer.fit(lin_model, dl_train, dl_val)
 # checkpoint.keys()
 
 ########################## Testing Transformer Model ##########################
-# from TransformerModel import Transformer
+from BasicTransformerModel import Transformer
 
 
 # transf_model = Transformer(
@@ -169,7 +196,7 @@ trainer.fit(lin_model, dl_train, dl_val)
 # )
 
 # Testing model components
-x, y = next(iter(dl_train))
+# x, y = next(iter(dl_train))
 
 # pred = transf_model.forward(x)
 # abs(pred-y).mean()
@@ -183,19 +210,19 @@ x, y = next(iter(dl_train))
 
 # trainer = pl.Trainer(devices="auto",accelerator="auto")
 # trainer.fit(transf_model, dl_train, dl_val)
-import torch.nn as nn
-context_block = 50
+# import torch.nn as nn
+# context_block = 50
 
-x1, x2 = x   # x1 is 10000 x 500
-x1T = x1.reshape(x1.shape[0],context_block,-1) # 10000 x 100 x 5
-x1T = torch.transpose(x1T,1,2) # 10000 x 5 x 100
+# x1, x2 = x   # x1 is 10000 x 500
+# x1T = x1.reshape(x1.shape[0],context_block,-1) # 10000 x 100 x 5
+# x1T = torch.transpose(x1T,1,2) # 10000 x 5 x 100
 
-x2T = x2.reshape(x2.shape[0],context_block,-1)
-x2T = torch.transpose(x2T,1, 2)
-Xinput_T =torch.cat((x1T,x2T),dim=1) # 10000 x 10 x 100
+# x2T = x2.reshape(x2.shape[0],context_block,-1)
+# x2T = torch.transpose(x2T,1, 2)
+# Xinput_T =torch.cat((x1T,x2T),dim=1) # 10000 x 10 x 100
 
-W = nn.Linear(context_block, 100)
-out = W(Xinput_T) # 10000 x 10 x output_dimension =100
+# W = nn.Linear(context_block, 100)
+# out = W(Xinput_T) # 10000 x 10 x output_dimension =100
 
 # pred = transf_model(Xinput)
 
@@ -210,7 +237,53 @@ out = W(Xinput_T) # 10000 x 10 x output_dimension =100
 # loss = metric(pred, y)
 
 
-# Fit model 
+# Test Fit model multiple heads + layers 
+transf_model = Transformer(
+    context_size=beforePts+afterPts, 
+    context_block=50,
+    output_dim=targetPts,
+    model_dim=50,
+    num_heads = 5,
+    num_layers = 4,
+    lr=0.001,
+    warmup=1,
+    max_iters=201,
+    dropout=0.2,
+    input_dropout=0.2,
+    mask = None) 
+early_stopping = EarlyStopping(monitor="val_loss", min_delta=0.00,
+                               patience=25, verbose=False, mode="min")
+
+trainer = pl.Trainer(#logger=neptune_logger,
+                     accelerator='auto', #devices=1, # Devices = number of gpus 
+                     callbacks=[early_stopping],
+                     max_epochs=10,
+                     log_every_n_steps=10)
+
+trainer.fit(transf_model, dl_train, dl_val)
+
+# Get loss on validation data
+# metric = torch.nn.MSELoss()
+# loss = metric(pred, y)
+# x, y = next(iter(dl_train))
+# pred = transf_model.forward(x)
+
+pred_error = []
+iter_dl_val = iter(dl_val)
+for _ in range(int(100000/batchSize)):
+    x, y = next(iter_dl_val)
+    pred = transf_model(x) 
+    pred_er = abs(pred-y)
+    pred_error.append(torch.mean(pred_er, dim=0).detach().numpy()) # Add mean predicion over samples 
+
+abs_pred_error = list(zip(*pred_error))
+abs_pred_error = list(map(lambda x: sum(x)/10, abs_pred_error))
+
+print("Avg L1: ", sum(abs_pred_error)/len(abs_pred_error))
+
+# AVG abs error PRelu: Avg L1:  18.02904111862183
+# AVG abs error Relu: Avg L1:  16.37
+# AVG abs error GELU: Avg L1:  18.14
 # trainer = pl.Trainer(devices="auto",accelerator="auto")
 
 # trainer.fit(transf_model, dl_train, dl_val)

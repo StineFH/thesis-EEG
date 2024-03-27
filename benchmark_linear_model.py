@@ -41,6 +41,7 @@ def runExperiment(
         targetPts=100,
         sessionIds = ['001', '002'], # i.e. only half the data in EESM19
         limit_val = 100000, # Dataset size 
+        train_size = 300000,
         max_iters = 15000,
         max_epochs = 1000,
         warmup = 300):
@@ -69,7 +70,8 @@ def runExperiment(
     ds_train=du.EEG_dataset_from_paths(trainPaths, beforePts=beforePts,
                                        afterPts=afterPts,targetPts=targetPts, 
                                        channelIdxs=channelIdxs,preprocess=False,
-                                        limit=None,transform=mytransform
+                                        limit=None,train_size = train_size,
+                                        transform=mytransform
                                        )
     dl_train=torch.utils.data.DataLoader(ds_train, batch_size=batchSize, 
                                          shuffle=True, num_workers=8)
@@ -139,11 +141,12 @@ targetPts=100
 beforePts=500
 afterPts=500
 sessionIds = ['001', '002'] # i-e. only half the data in EESM19
-limit = 100000 # Dataset size - only changes it for validation - change in function to change for train
+limit = 100000 # validation dataset size
+train_size = 300000 # train dataset size 
 batchSize= 10000
 channelIdxs=[1,19,23]
 valSub=0
-max_iters = 3300
+max_iters = 9200
 max_epochs = 300
 warmup = 300
 
@@ -156,6 +159,7 @@ trainer,net=runExperiment(batchSize= batchSize,
                           afterPts=afterPts,
                           sessionIds = sessionIds, # i.e. only half the data in EESM19
                           limit_val = limit, # Dataset size 
+                          train_size = train_size,
                           max_iters = max_iters,
                           max_epochs = max_epochs,
                           warmup = warmup)

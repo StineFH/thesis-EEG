@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import torch
 import data_utils4 as du
 from LinearModel import linearModel
-from TransformerModel import Transformer
+from BasicTransformerModel import Transformer
 
 
 
@@ -62,9 +62,9 @@ def visualizeTargetPrediction(model, model_path, path, subjectId, sessionId, bef
     subPath=du.returnFilePaths(path, [subjectId], sessionIds=[sessionId])[0]
     
     ds_train=du.EEG_dataset_from_paths([subPath], beforePts=beforePts,
-                                       afterPts=afterPts,targetPts=targetPts, 
-                                       channelIdxs=channelIds, preprocess=False,
-                                       limit=1, transform=mytransform)
+                                        afterPts=afterPts,targetPts=targetPts, 
+                                        channelIdxs=channelIds, preprocess=False,
+                                        limit=1, transform=mytransform)
     dl_train=torch.utils.data.DataLoader(ds_train, batch_size=1, shuffle=False)
 
     x, y = next(iter(dl_train))
@@ -74,7 +74,7 @@ def visualizeTargetPrediction(model, model_path, path, subjectId, sessionId, bef
     pred = model(x) 
     
     x1, x2= x # x1 before and x2 after window
-    original  = torch.cat((x1, y, x2),dim=1)
+    # original  = torch.cat((x1, y, x2),dim=1)
     
     # Plotting
     colors = plt.cm.Paired([1,5])
@@ -84,10 +84,16 @@ def visualizeTargetPrediction(model, model_path, path, subjectId, sessionId, bef
     ax.axvline(beforePts, color = "grey", linestyle = 'dashed')
     ax.axvline(beforePts+targetPts, color = "grey", linestyle = 'dashed')
     
-    plt.plot(range(beforePts+targetPts+afterPts), original[0].detach().numpy(), 
+    # plt.plot(range(beforePts+targetPts+afterPts), original[0].detach().numpy(), 
+    #          label='Original', color = colors[0])
+    # plt.plot(range(beforePts, beforePts+targetPts), pred[0].detach().numpy(), 
+    #          label='Prediction', color = colors[1])
+   
+    plt.plot(range(targetPts), y.detach().numpy(), 
              label='Original', color = colors[0])
-    plt.plot(range(beforePts, beforePts+targetPts), pred[0].detach().numpy(), 
+    plt.plot(range(targetPts), pred[0].detach().numpy(), 
              label='Prediction', color = colors[1])
+   
     
     plt.title('Predicted and target EEG')
     plt.xlabel('')
@@ -108,28 +114,28 @@ beforePts=500
 afterPts=500
 targetPts=100
 channelIds=[1,19,23]
-model_path = './linear_model_snapshot/THES-34.pt'
-# model_path = './transformer_model_snapshot/THES-32.pt'
+# model_path = './linear_model_snapshot/THES-34.pt'
+model_path = './transformer_model_snapshot/THES-32.pt'
 
 model = linearModel(lr=0.001,input_size=500+500, output_size=100, 
                         warmup=300,
                         max_iters=3300) 
-# model = Transformer(
-#         context_size=500+500, 
-#         context_block=50,
-#         output_dim=100,
-#         model_dim=50,
-#         num_heads=1,
-#         num_layers=1,
-#         lr=0.001,
-#         warmup=300,
-#         max_iters=3300,
-#         dropout=0.0,
-#         input_dropout=0.0,
-#         mask = None) 
-file_name = './plots/target-pred-THES34-sub001'
+model = Transformer(
+        context_size=500+500, 
+        context_block=50,
+        output_dim=100,
+        model_dim=50,
+        num_heads=1,
+        num_layers=1,
+        lr=0.001,
+        warmup=300,
+        max_iters=3300,
+        dropout=0.0,
+        input_dropout=0.0,
+        mask = None) 
+file_name = './plots/target-pred-THES32-sub001'
 
-visualizeTargetPrediction(model, model_path, path, subjectId, sessionId, 
+visualizeTargetPrediction(model, model_path, path, subjectId, sessionId,
                           beforePts, afterPts, targetPts, channelIds, 
                           file_name = file_name)
 
