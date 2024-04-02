@@ -2,8 +2,8 @@ import matplotlib.pyplot as plt
 import torch
 import data_utils4 as du
 from LinearModel import linearModel
-from BasicTransformerModel import Transformer
-
+# from BasicTransformerModel import Transformer
+from L1LossTransformerModel import Transformer
 
 
 def abs_prediction_error(abs_pred_error, file_name):
@@ -12,12 +12,14 @@ def abs_prediction_error(abs_pred_error, file_name):
     The first half and last half of points are displayed where the last half 
     has reversed points to fit with distance to points after. 
     """
-    abs_pred_error = list(zip(*abs_pred_error))
-    abs_pred_error = list(map(lambda x: sum(x)/10, abs_pred_error))
+    abs_pred_error = torch.cat(list(map(torch.tensor, abs_pred_error)), dim=0)
+    MSE = torch.mean(torch.mean(torch.square(abs_pred_error), dim=0)) # Overall 
     
-    print("Avg L1: ", sum(abs_pred_error)/len(abs_pred_error))
+    MAE = torch.mean(abs_pred_error, dim=0)
+    print("Avg L1: ", sum(MAE)/len(MAE))
+    print("Avg MSE: ", MSE)
     
-    assert len(abs_pred_error) % 2 == 0
+    assert len(MAE) % 2 == 0
     
     half_len_preds = int(len(abs_pred_error)/2)
     dist_from_known = range(1, half_len_preds+1) 
@@ -50,50 +52,28 @@ def val_train_loss(val_loss, train_loss, x_axis = 'Epochs'):
     plt.legend()
     plt.show()
 
-def visualizeTargetPrediction(model, model_path, path, subjectId, sessionId, beforePts, afterPts,
+def visualizeTargetPrediction(x, y, model, model_path, path, subjectId, sessionId, beforePts, afterPts,
                               targetPts, channelIds, file_name):
-    # Get data 
-    
-    def mytransform(raw):
-        raw.filter(0.1, 40)
-        raw._data=raw._data*1e6
-        return raw
-    
-    subPath=du.returnFilePaths(path, [subjectId], sessionIds=[sessionId])[0]
-    
-    ds_train=du.EEG_dataset_from_paths([subPath], beforePts=beforePts,
-                                        afterPts=afterPts,targetPts=targetPts, 
-                                        channelIdxs=channelIds, preprocess=False,
-                                        limit=1, transform=mytransform)
-    dl_train=torch.utils.data.DataLoader(ds_train, batch_size=1, shuffle=False)
-
-    x, y = next(iter(dl_train))
 
     # Load saved weights 
     model.load_state_dict(torch.load(model_path))
     pred = model(x) 
     
     x1, x2= x # x1 before and x2 after window
-    # original  = torch.cat((x1, y, x2),dim=1)
+    original  = torch.cat((x1[:,:50], y, x2[:,:50]),dim=1)
     
     # Plotting
     colors = plt.cm.Paired([1,5])
     ax = plt.axes()
     ax.set_facecolor("#F8F8F8")
     
-    ax.axvline(beforePts, color = "grey", linestyle = 'dashed')
-    ax.axvline(beforePts+targetPts, color = "grey", linestyle = 'dashed')
+    ax.axvline(50, color = "grey", linestyle = 'dashed')
+    ax.axvline(50+targetPts, color = "grey", linestyle = 'dashed')
     
-    # plt.plot(range(beforePts+targetPts+afterPts), original[0].detach().numpy(), 
-    #          label='Original', color = colors[0])
-    # plt.plot(range(beforePts, beforePts+targetPts), pred[0].detach().numpy(), 
-    #          label='Prediction', color = colors[1])
-   
-    plt.plot(range(targetPts), y.detach().numpy(), 
-             label='Original', color = colors[0])
-    plt.plot(range(targetPts), pred[0].detach().numpy(), 
-             label='Prediction', color = colors[1])
-   
+    plt.plot(range(50+targetPts+50), original[0].detach().numpy(), 
+              label='Original', color = colors[0])
+    plt.plot(range(50, 50+targetPts), pred[0].detach().numpy(), 
+              label='Prediction', color = colors[1])
     
     plt.title('Predicted and target EEG')
     plt.xlabel('')
@@ -101,7 +81,9 @@ def visualizeTargetPrediction(model, model_path, path, subjectId, sessionId, bef
     plt.legend()
 
     if file_name: 
-        plt.savefig(file_name)
+        figure = plt.gcf()
+        figure.set_size_inches(12, 8)
+        plt.savefig(file_name, dpi = 100, bbox_inches='tight')
     plt.show()
 
 
@@ -114,12 +96,12 @@ beforePts=500
 afterPts=500
 targetPts=100
 channelIds=[1,19,23]
-# model_path = './linear_model_snapshot/THES-34.pt'
-model_path = './transformer_model_snapshot/THES-32.pt'
+# model_path = './linear_model_snapshot/THES-38.pt'
+model_path = './transformer_model_snapshot/THES-41.pt'
 
-model = linearModel(lr=0.001,input_size=500+500, output_size=100, 
-                        warmup=300,
-                        max_iters=3300) 
+# model = linearModel(lr=0.001,input_size=500+500, output_size=100, 
+#                         warmup=300,
+#                         max_iters=9200) 
 model = Transformer(
         context_size=500+500, 
         context_block=50,
@@ -129,22 +111,39 @@ model = Transformer(
         num_layers=1,
         lr=0.001,
         warmup=300,
-        max_iters=3300,
-        dropout=0.0,
-        input_dropout=0.0,
+        max_iters=9200,
+        dropout=0.2,
+        input_dropout=0.2,
         mask = None) 
-file_name = './plots/target-pred-THES32-sub001'
+file_name = './plots/target-pred-THES41-sub001_3'
 
-visualizeTargetPrediction(model, model_path, path, subjectId, sessionId,
+## GET THE DATA 
+
+def mytransform(raw):
+    raw.filter(0.1, 40)
+    raw._data=raw._data*1e6
+    return raw
+
+subPath=du.returnFilePaths(path, [subjectId], sessionIds=[sessionId])
+
+ds_train=du.EEG_dataset_from_paths(subPath, beforePts=beforePts,
+                                    afterPts=afterPts,targetPts=targetPts, 
+                                    channelIdxs=channelIds, preprocess=False,
+                                    limit=10, transform=mytransform)
+dl_train=torch.utils.data.DataLoader(ds_train, batch_size=1, shuffle=False)
+
+data_iter = iter(dl_train)
+x, y = next(data_iter)
+
+visualizeTargetPrediction(x, y, model, model_path, path, subjectId, sessionId,
                           beforePts, afterPts, targetPts, channelIds, 
                           file_name = file_name)
 
 ####################### Plot Absolute Prediction Error ########################
 
-
-filename = 'THES-34'
-abs_pred_error = torch.load("./lin_model_prediction_error/"  + filename+ '.pt')
-# abs_pred_error = torch.load("./transformer_prediction_error/"  + filename + '.pt')
+filename = 'THES-41' 
+# abs_pred_error = torch.load("./lin_model_prediction_error/"  + filename+ '.pt')
+abs_pred_error = torch.load("./transformer_prediction_error/"  + filename + '.pt')
 
 abs_prediction_error(abs_pred_error, file_name='./plots/avg_abs_pred_error_'+filename+'.png')
 

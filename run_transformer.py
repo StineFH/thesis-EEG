@@ -6,8 +6,8 @@ import pytorch_lightning as pl
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 
 import data_utils4 as du
-from BasicTransformerModel import Transformer
 
+from BasicTransformerModel import Transformer
 
 pl.seed_everything(42, workers=True)
 
@@ -108,8 +108,8 @@ def runExperiment(
         context_block=50,
         output_dim=targetPts,
         model_dim=50,
-        num_heads = 1,
-        num_layers = 1,
+        num_heads = 10,
+        num_layers = 3,
         lr=0.001,
         warmup=warmup,
         max_iters=max_iters,
@@ -123,7 +123,7 @@ def runExperiment(
                          accelerator='gpu', devices=1, # Devices = number of gpus 
                          callbacks=[early_stopping],
                          max_epochs=max_epochs,
-                         log_every_n_steps=10)
+                         log_every_n_steps=30)
     
     trainer.fit(transf_model, dl_train, dl_val)
     
@@ -134,11 +134,11 @@ def runExperiment(
     transf_model.load_state_dict(torch.load("./transformer_model_snapshot/" + neptune_logger.version + '.pt'))
     pred_error = []
     iter_dl_val = iter(dl_val)
-    for _ in range(int(100000/batchSize)):
+    for _ in range(int(limit_val/batchSize)):
         x, y = next(iter_dl_val)
         pred = transf_model(x) 
         pred_er = abs(pred-y)
-        pred_error.append(torch.mean(pred_er, dim=0).detach().numpy()) # Add mean predicion over samples 
+        pred_error.append(pred_er.detach().numpy()) # Add mean predicion over samples 
     
     torch.save(pred_error, './transformer_prediction_error/' + neptune_logger.version + '.pt')
     
@@ -154,13 +154,13 @@ beforePts=500
 afterPts=500
 sessionIds = ['001', '002'] # i-e. only about half the data in EESM19
 limit = 100000 # Validation dataset size
-train_size = 300000 # Train dataset size 
+train_size = 620000 # Train dataset size 
 batchSize= 10000
 channelIdxs=[1,19,23]
 valSub=0
-max_iters = 9200
+max_iters = 18800
 max_epochs = 300
-warmup = 300
+warmup = 620
 
 
 trainer,net=runExperiment(batchSize= batchSize,
