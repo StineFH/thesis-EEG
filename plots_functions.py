@@ -1,9 +1,6 @@
 import matplotlib.pyplot as plt
 import torch
 import data_utils4 as du
-from LinearModel import linearModel
-# from BasicTransformerModel import Transformer
-from L1LossTransformerModel import Transformer
 
 
 def abs_prediction_error(abs_pred_error, file_name):
@@ -21,15 +18,15 @@ def abs_prediction_error(abs_pred_error, file_name):
     
     assert len(MAE) % 2 == 0
     
-    half_len_preds = int(len(abs_pred_error)/2)
+    half_len_preds = int(len(MAE)/2)
     dist_from_known = range(1, half_len_preds+1) 
     
     colors = plt.cm.Paired([1,3])
     ax = plt.axes()
     ax.set_facecolor("#F8F8F8")
     
-    plt.plot(dist_from_known, abs_pred_error[:half_len_preds], label='First', color = colors[0])
-    plt.plot(dist_from_known, list(abs_pred_error[half_len_preds:])[::-1], label='Last', color = colors[1])
+    plt.plot(dist_from_known, MAE[:half_len_preds], label='First', color = colors[0])
+    plt.plot(dist_from_known, list(MAE[half_len_preds:])[::-1], label='Last', color = colors[1])
     plt.title('Average absolute prediction error')
     plt.xlabel('Distance from known point')
     plt.xticks(list(dist_from_known[::4]))
@@ -60,7 +57,7 @@ def visualizeTargetPrediction(x, y, model, model_path, path, subjectId, sessionI
     pred = model(x) 
     
     x1, x2= x # x1 before and x2 after window
-    original  = torch.cat((x1[:,:50], y, x2[:,:50]),dim=1)
+    original  = torch.cat((x1[:,-50:], y, x2[:,:50]),dim=1)
     
     # Plotting
     colors = plt.cm.Paired([1,5])
@@ -96,26 +93,31 @@ beforePts=500
 afterPts=500
 targetPts=100
 channelIds=[1,19,23]
-# model_path = './linear_model_snapshot/THES-38.pt'
-model_path = './transformer_model_snapshot/THES-41.pt'
+# model_path = './linear_model_snapshot/THES-44.pt'
+model_path = './transformer_model_snapshot/THES-44.pt'
 
+# from LinearModel import linearModel
 # model = linearModel(lr=0.001,input_size=500+500, output_size=100, 
 #                         warmup=300,
 #                         max_iters=9200) 
-model = Transformer(
+
+# from BasicTransformerModel import Transformer
+# from L1LossTransformerModel import Transformer
+from BatchNormTransformerModel import BatchNormTransformer
+
+model = BatchNormTransformer(
         context_size=500+500, 
         context_block=50,
         output_dim=100,
         model_dim=50,
-        num_heads=1,
-        num_layers=1,
+        num_heads=10,
+        num_layers=3,
         lr=0.001,
-        warmup=300,
-        max_iters=9200,
+        warmup=620, #620
+        max_iters=18800, #18800
         dropout=0.2,
         input_dropout=0.2,
         mask = None) 
-file_name = './plots/target-pred-THES41-sub001_3'
 
 ## GET THE DATA 
 
@@ -125,23 +127,23 @@ def mytransform(raw):
     return raw
 
 subPath=du.returnFilePaths(path, [subjectId], sessionIds=[sessionId])
+ds_val=du.EEG_dataset_from_paths(subPath, beforePts=beforePts,afterPts=afterPts,
+                                 targetPts=targetPts, channelIdxs=1,
+                                 preprocess=False,limit=10,transform=mytransform
+                                 )
+dl_val=torch.utils.data.DataLoader(ds_val, batch_size=1, shuffle=False)
 
-ds_train=du.EEG_dataset_from_paths(subPath, beforePts=beforePts,
-                                    afterPts=afterPts,targetPts=targetPts, 
-                                    channelIdxs=channelIds, preprocess=False,
-                                    limit=10, transform=mytransform)
-dl_train=torch.utils.data.DataLoader(ds_train, batch_size=1, shuffle=False)
-
-data_iter = iter(dl_train)
+data_iter = iter(dl_val)
 x, y = next(data_iter)
 
+file_name = './plots/target-pred-THES44-sub001_3'
 visualizeTargetPrediction(x, y, model, model_path, path, subjectId, sessionId,
                           beforePts, afterPts, targetPts, channelIds, 
                           file_name = file_name)
 
 ####################### Plot Absolute Prediction Error ########################
 
-filename = 'THES-41' 
+filename = 'THES-44' 
 # abs_pred_error = torch.load("./lin_model_prediction_error/"  + filename+ '.pt')
 abs_pred_error = torch.load("./transformer_prediction_error/"  + filename + '.pt')
 

@@ -196,7 +196,8 @@ from BasicTransformerModel import Transformer
 # )
 
 # Testing model components
-# x, y = next(iter(dl_train))
+# train_iter = iter(dl_train)
+# x, y = next(train_iter)
 
 # pred = transf_model.forward(x)
 # abs(pred-y).mean()
@@ -211,15 +212,50 @@ from BasicTransformerModel import Transformer
 # trainer = pl.Trainer(devices="auto",accelerator="auto")
 # trainer.fit(transf_model, dl_train, dl_val)
 # import torch.nn as nn
-# context_block = 50
+context_block = 50
+num_heads=1 
+input_dim = 50 
+dim_ff = 2*input_dim
+patch_length = int(1000/context_block)
+dropout = 0.2
 
-# x1, x2 = x   # x1 is 10000 x 500
-# x1T = x1.reshape(x1.shape[0],context_block,-1) # 10000 x 100 x 5
-# x1T = torch.transpose(x1T,1,2) # 10000 x 5 x 100
+x1, x2 = x   # x1 is 10000 x 500
+x1T = x1.reshape(x1.shape[0],context_block,-1) # 10000 x 100 x 5
+x1T = torch.transpose(x1T,1,2) # 10000 x 5 x 100
 
-# x2T = x2.reshape(x2.shape[0],context_block,-1)
-# x2T = torch.transpose(x2T,1, 2)
-# Xinput_T =torch.cat((x1T,x2T),dim=1) # 10000 x 10 x 100
+x2T = x2.reshape(x2.shape[0],context_block,-1)
+x2T = torch.transpose(x2T,1, 2)
+x =torch.cat((x1T,x2T),dim=1) # 10000 x 10 x 100 [batch_size, x, input_dim]
+
+import torch.nn as nn
+self_attn = nn.MultiheadAttention(embed_dim=input_dim,
+                                           num_heads=num_heads,
+                                           batch_first=True)
+
+# Two-layer MLP
+linear_net = nn.Sequential(nn.Linear(input_dim, dim_ff),
+                                nn.ReLU(),
+                                nn.Linear(dim_ff, input_dim)
+                                )
+
+# Layers to apply in between the main layers
+batchNorm1 = nn.BatchNorm1d(input_dim) # Input is number of "channels"
+batchNorm2 = nn.BatchNorm1d(input_dim)
+dropout = nn.Dropout(dropout)
+    
+
+attn_out = self_attn(x, x, x)[0] # output is tuple therefore [0] | out size [batch_size, 20, input_dim]
+x = x + dropout(attn_out) # out size as above
+x = torch.transpose(x,1, 2)
+x = batchNorm1(x)
+x = torch.transpose(x,1, 2)
+
+# MLP part
+linear_out = linear_net(x)
+x = x + dropout(linear_out)
+x = torch.transpose(x,1, 2)
+x = batchNorm2(x)
+x = torch.transpose(x,1, 2)
 
 # W = nn.Linear(context_block, 100)
 # out = W(Xinput_T) # 10000 x 10 x output_dimension =100
