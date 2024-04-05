@@ -116,10 +116,6 @@ dl_val=torch.utils.data.DataLoader(ds_val, batch_size=batchSize)
 # metric = torch.nn.MSELoss()
 # loss = metric(pred, y)
 
-# from torchmetrics.regression import R2Score
-# r2score = R2Score(num_outputs = 1, multioutput = 'uniform_average')
-# r2 = r2score(pred, y)
-
 ############################# Testing Linear Model ############################
 # Define model 
 # Why is there 100.000 trainable parameters like the limit and not 1000 like the size of each sample? 
@@ -132,86 +128,8 @@ trainer = pl.Trainer(devices="auto",accelerator="auto",
                       max_epochs=2)
 
 trainer.fit(lin_model, dl_train, dl_val)
-############################# Model with Neptune ##############################
-#https://docs.neptune.ai/api/neptune/#init_run
 
-# learning rates to try: Constant, exponential decay, CosineWarmup, cyclic
-
-#### REMEMBER TO CHANGE NAME OF LR SCHEDULER
-# scheduler_name = "Exponential_g795"
-# lr = 0.01
-
-# neptune_logger = pl.loggers.NeptuneLogger(
-#     project="stinefh/thesis-EEG", 
-#     source_files=["testing.py", 
-#                   "data_utils4.py", 
-#                   "LinearModel.py"]
-#     # tags=neptuneTags
-#     )
-# neptune_logger.log_hyperparams({'valSub':subjectIds[valSub]})
-# neptune_logger.log_hyperparams({'trainSub':trainIds})
-# neptune_logger.log_hyperparams({'beforePts':beforePts, 'afterPts':afterPts})
-# neptune_logger.log_hyperparams({'lr schedular':scheduler_name})
-
-# lin_model = linearModel(lr,beforePts+afterPts, targetPts, warmup = 100)
-# early_stopping = EarlyStopping(monitor="val_loss", min_delta=0.00, 
-#                                     patience=25, verbose=False, mode="min")
-
-# trainer = pl.Trainer(logger=neptune_logger,
-#                      devices="auto",accelerator="auto",
-#                      max_epochs=20, 
-#                      callbacks=[early_stopping],
-#                      max_epochs=1000,gpus=1,progress_bar_refresh_rate=1)
-
-# trainer.fit(lin_model, dl_train, dl_val)
-
-# torch.save(lin_model.state_dict(), 'linear_model_snapshots/' + neptune_logger.version + '.pt')
-
-# neptune_logger.finalize('Success')
-# neptune_logger.experiment.stop()
-
- 
-
-# Load saved weights 
-# checkpoint = torch.load("./linear_model_snapshot/THES-24.pt")
-# checkpoint.keys()
-
-########################## Testing Transformer Model ##########################
-from BasicTransformerModel import Transformer
-
-
-# transf_model = Transformer(
-#     context_size=1000, 
-#     context_block=100,
-#     output_dim=100,
-#     model_dim=100,
-#     num_heads=1,
-#     num_layers=1,
-#     lr=0.001,
-#     warmup=1,
-#     max_iters=10,
-#     dropout=0.0,
-#     input_dropout=0.0,
-#     mask = None
-# )
-
-# Testing model components
-# train_iter = iter(dl_train)
-# x, y = next(train_iter)
-
-# pred = transf_model.forward(x)
-# abs(pred-y).mean()
-
-# transf_model.configure_optimizers()
-# batch = next(iter(dl_train))
-# transf_model.training_step(batch, 1)
-
-# pred = transf_model.forward(x)
-# abs(pred-y).mean()
-
-# trainer = pl.Trainer(devices="auto",accelerator="auto")
-# trainer.fit(transf_model, dl_train, dl_val)
-# import torch.nn as nn
+########################## Testing Batch Norm ##########################
 context_block = 50
 num_heads=1 
 input_dim = 50 
@@ -219,13 +137,15 @@ dim_ff = 2*input_dim
 patch_length = int(1000/context_block)
 dropout = 0.2
 
-x1, x2 = x   # x1 is 10000 x 500
-x1T = x1.reshape(x1.shape[0],context_block,-1) # 10000 x 100 x 5
-x1T = torch.transpose(x1T,1,2) # 10000 x 5 x 100
+train_iter = iter(dl_train)
+x, y = next(train_iter)
+x1, x2 = x   # x1 is 10000 x 500 [batch_size x context_size]
+x1T = x1.reshape(x1.shape[0],context_block,-1) # 10000 x 50 x 10 [ batch_size x context_block x context_size/context_block]
+x1T = torch.transpose(x1T,1,2) # 10000 x 10 x 50 [batch_size x context_size/context_block x context_block]
 
 x2T = x2.reshape(x2.shape[0],context_block,-1)
 x2T = torch.transpose(x2T,1, 2)
-x =torch.cat((x1T,x2T),dim=1) # 10000 x 10 x 100 [batch_size, x, input_dim]
+x =torch.cat((x1T,x2T),dim=1) # 10000 x 20 x 50 [batch_size, no patches, context_block]
 
 import torch.nn as nn
 self_attn = nn.MultiheadAttention(embed_dim=input_dim,
@@ -257,23 +177,10 @@ x = torch.transpose(x,1, 2)
 x = batchNorm2(x)
 x = torch.transpose(x,1, 2)
 
-# W = nn.Linear(context_block, 100)
-# out = W(Xinput_T) # 10000 x 10 x output_dimension =100
-
-# pred = transf_model(Xinput)
-
-
-
-# batch = next(iter(dl_train))
-# transf_model.training_step(batch, 1)
-
-# pred = transf_model.forward(Xinput)
-# abs(pred - y)
-# metric = torch.nn.MSELoss()
-# loss = metric(pred, y)
-
-
+############################# Calculate prediction error #####################
 # Test Fit model multiple heads + layers 
+from BasicTransformerModel import Transformer
+
 transf_model = Transformer(
     context_size=beforePts+afterPts, 
     context_block=50,
@@ -323,3 +230,14 @@ print("Avg L1: ", sum(abs_pred_error)/len(abs_pred_error))
 # trainer = pl.Trainer(devices="auto",accelerator="auto")
 
 # trainer.fit(transf_model, dl_train, dl_val)
+
+############################## Overlapping patches ###########################
+x = torch.arange(0., 5120000)
+
+x=x.reshape(10000,512) #[batch_size = 10, before/afterpts = 6] |[10000, 500]
+x.shape
+
+x = x.unfold(dimension = 1, size = 8, step = 4) # batch_size x no. patches x stride
+x.shape # if stride < size then shape 
+x=x.reshape(10000,-1 ,8)
+x.shape

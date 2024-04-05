@@ -58,7 +58,7 @@ class EncoderBlock(nn.Module):
                                         )
 
         # Layers to apply in between the main layers
-        self.batchNorm1 = nn.BatchNorm1d(patch_length) # Input is number of "channels"
+        self.batchNorm1 = nn.BatchNorm1d(patch_length) # patch_length # Input is number of "channels"
         self.batchNorm2 = nn.BatchNorm1d(patch_length)
         self.dropout = nn.Dropout(dropout)
         
