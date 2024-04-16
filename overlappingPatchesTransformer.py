@@ -204,9 +204,9 @@ class OverlappingTransformer(pl.LightningModule):
         
     def contextBlockFunc(self, x):
         #returns a list of patches i.e. cuts the input into smaller patches 
-        #assumes input is (batch,sequence)
+        #assumes input is (batch, sequence)
         x = x.unfold(dimension = 1, size = self.hparams.patch_size, 
-                     step = self.hparams.step) # batch_size x no. patches x stride
+                     step = self.hparams.step) # (batch_size, no. patches, patch_length)
         return x
     
     def on_train_start(self):

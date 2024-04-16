@@ -89,12 +89,12 @@ def visualizeTargetPrediction(x, y, model, model_path, path, subjectId, sessionI
 path= 'Y:\\NTdata\\BIDS\\EESM19\\derivatives\\cleaned_1\\'
 subjectId = '001'
 sessionId='001'
-beforePts=500
-afterPts=500
-targetPts=100
+beforePts=512
+afterPts=512
+targetPts=96
 # channelIds=[1,19,23]
 # model_path = './linear_model_snapshot/THES-48.pt'
-model_path = './transformer_model_snapshot/THES-44.pt'
+model_path = './transformer_model_snapshot/THES-49.pt'
 
 # from LinearModel import linearModel
 # model = linearModel(lr=0.001,input_size=512+512, output_size=96, 
@@ -103,29 +103,16 @@ model_path = './transformer_model_snapshot/THES-44.pt'
 
 # from BasicTransformerModel import Transformer
 # from L1LossTransformerModel import Transformer
-from BatchNormTransformerModel import BatchNormTransformer
+# from BatchNormTransformerModel import BatchNormTransformer
 # from overlappingPatchesTransformer import OverlappingTransformer
+from TUPETransformerModel import TUPEOverlappingTransformer
 
-model = BatchNormTransformer(
-        context_size=500+500, 
-        context_block=50,
-        output_dim=100,
-        model_dim=50,
-        num_heads=10,
-        num_layers=3,
-        lr=0.001,
-        warmup=620, #620
-        max_iters=18800, #18800
-        dropout=0.2,
-        input_dropout=0.2,
-        mask = None) 
-# model = OverlappingTransformer(
-#         context_size=512+512,
-#         patch_size=64,
-#         step = 32,
-#         output_dim=96,
-#         model_dim=64,
-#         num_heads=16,
+# model = BatchNormTransformer(
+#         context_size=500+500, 
+#         context_block=50,
+#         output_dim=100,
+#         model_dim=50,
+#         num_heads=10,
 #         num_layers=3,
 #         lr=0.001,
 #         warmup=620, #620
@@ -133,6 +120,20 @@ model = BatchNormTransformer(
 #         dropout=0.2,
 #         input_dropout=0.2,
 #         mask = None) 
+model = TUPEOverlappingTransformer(
+        context_size=512+512,
+        patch_size=64,
+        step = 32,
+        output_dim=96,
+        model_dim=64,
+        num_heads=16,
+        num_layers=3,
+        lr=0.001,
+        warmup=620, #620
+        max_iters=18800, #18800
+        dropout=0.2,
+        input_dropout=0.2,
+        mask = None) 
 
 ## GET THE DATA 
 
@@ -153,15 +154,15 @@ data_iter = iter(dl_val)
 
 x, y = next(data_iter)
 no += 1
-file_name = './plots/target-pred-THES44-sub001_' + str(no)
+file_name = './plots/target-pred-THES49-sub001_' + str(no)
 visualizeTargetPrediction(x, y, model, model_path, path, subjectId, sessionId,
                           beforePts, afterPts, targetPts,  
                           file_name = file_name)
 
 ####################### Plot Absolute Prediction Error ########################
 
-filename = 'THES-44' 
-# abs_pred_error = torch.load("./lin_model_prediction_error/"  + filename+ '.pt')
-abs_pred_error = torch.load("./transformer_prediction_error/"  + filename + '.pt')
+filename = 'THES-48' 
+abs_pred_error = torch.load("./lin_model_prediction_error/"  + filename+ '.pt')
+# abs_pred_error = torch.load("./transformer_prediction_error/"  + filename + '.pt')
 
 abs_prediction_error(abs_pred_error, file_name='./plots/avg_abs_pred_error_'+filename+'.png')
