@@ -21,8 +21,8 @@ pl.seed_everything(42, workers=True)
 batchSize= 10000
 channelIdxs=[1,19,23] 
 valSub=0
-beforePts=512
-afterPts=512
+beforePts=512*2
+afterPts=0
 targetPts=96
 
 bidsPath= 'Y:\\NTdata\\BIDS\\EESM17\\'
@@ -269,16 +269,21 @@ inputs, y = next(data_iter)
 batch = next(data_iter)
 
 x1, x2 = inputs
-#input x1 and x2: returns as (batch,sequence,patch_length)
+#input x1 and x2: returns as (batch,sequence,patch_length) 
 x1 = x1.unfold(dimension = 1, size = patch_length, 
              step = step) # batch_size x no. patches x patch_length # shape torch.Size([10, 16, 64])
 x2 = x2.unfold(dimension = 1, size = patch_length, 
              step = step)
 x=torch.cat((x1,x2),dim=1) #torch.Size([10, 16, 64])
 
+###
+x = inputs.unfold(dimension = 1, size = patch_length, 
+             step = step)
+
+
 #https://towardsdatascience.com/transformers-explained-visually-part-3-multi-head-attention-deep-dive-1c1ff1024853
 
-input_dim = 64 
+input_dim = 16
 embed_dim = 64
 num_heads = 16
 
@@ -321,8 +326,8 @@ Uq, Uk= PE_term.chunk(2, dim=-1)
 qkv = qkv.reshape(batch_size, -1, num_heads, 3*head_dim)
 # patches are divided across heads to be processed i.e. 16 patches of length 4 are processed on 16 differen heads
 # Is that correctly understood? 
-qkv = qkv.permute(0, 2, 1, 3) # [Batch, Head, no pathces, head_dim]
-q, k, v = qkv.chunk(3, dim=-1)
+qkv = qkv.permute(0, 2, 1, 3) # [Batch, Head, no pathces, 3*head_dim]
+q, k, v = qkv.chunk(3, dim=-1)# [Batch, Head, no pathces, head_dim]
 
 def tupe_product(q, k):
     d = q.size()[-1]
@@ -333,7 +338,7 @@ PE_attn = tupe_product(Uq, Uk)
 PE_attn.shape
 word_attn = tupe_product(q, k)
 word_attn.shape
-attention = nn.functional.softmax(PE_attn+word_attn, dim=-1)
+attention = nn.functional.softmax(PE_attn+word_attn+PE_b, dim=-1)
 values = torch.matmul(attention, v)
 
 values = values.permute(0, 2, 1, 3) # [Batch, SeqLen, Head, Dims]
@@ -345,10 +350,7 @@ Wo = Wo_proj(values)
 # else:
 #     return o
 
-# Styr på patch_length og no patches... 
-x1.shape
-x1.unfold(1, 64, 64).shape
-x.unfold(0, 2, 2).shape
+
 # Kunne give multiheadattn idx i transformerEncoder 
 # PE kun udregnet for 1. lag 
 
@@ -425,101 +427,129 @@ transformer = TransformerEncoder(
 # TEST FORWARD I TUPE TRANSF
 
 #forward pass
-x = input_net(x)
-x = transformer(x, PE) # Might need to do something different with mask 
-x= output_net(x)
+# x = input_net(x)
+# x = transformer(x, PE) # Might need to do something different with mask 
+# x= output_net(x)
 
 
 
-TMultihead = TUPEMultiheadAttention(input_dim = 32, embed_dim=64, num_heads=16)
-TMultihead(x, PE)
+# TMultihead = TUPEMultiheadAttention(input_dim = 32, embed_dim=64, num_heads=16)
+# TMultihead(x, PE)
 
-"""
-Going into input_net()
-Going into transformer()
-input shape:  torch.Size([10000, 32, 64])
-qkv weights shape:  torch.Size([192, 64])
-Uq shape  torch.Size([10000, 16, 32, 4])
-q shape:  torch.Size([10000, 16, 32, 4])
-to be multiplied:  torch.Size([10000, 16, 32, 32])  
-    other  torch.Size([10000, 16, 32, 32])
+######################## LAYERNORM ###################################
+N, C, H = 10000, 127, 64
+# z = torch.randn(N, C, H, W)
 
-input shape:  torch.Size([10000, 32, 64])
-qkv weights shape:  torch.Size([192, 64])
-Uq shape  torch.Size([10000, 16, 32, 4])
-q shape:  torch.Size([10000, 16, 32, 4])
-to be multiplied:  torch.Size([10000, 16, 32, 32])  
-    other  torch.Size([10000, 16, 32, 32])
+layer_norm = nn.LayerNorm(64)
 
-input shape:  torch.Size([10000, 32, 64])
-qkv weights shape:  torch.Size([192, 64])
-Uq shape  torch.Size([10000, 16, 32, 4])
-q shape:  torch.Size([10000, 16, 32, 4])
-to be multiplied:  torch.Size([10000, 16, 32, 32])  
-    other  torch.Size([10000, 16, 32, 32])
-Going into output_net()
+output = layer_norm(x)
+
+layer_norm.weight
+layer_norm.bias
+
+x.mean((-2, -1)).shape
+x.sd((-2, -1)).shape
+torch.std(x, dim=(-2, -1))
+
+########################## CHANNEL INDEPENDENCE ##############################
+# def getAllowedDatapoint(self, returnData=False):
+raws = ds_train.raws
+nChannels=len(channelIdxs) if isinstance(channelIdxs, (list,tuple,range)) else 1
+
+windowSize=beforePts+afterPts+targetPts
+#keep looking until we find a data window without nan's
+data=[np.nan]
+
+while np.any(np.isnan(data)):            
+    randFileIdx=np.random.randint(0, len(raws))    
+    randomIdx=np.random.randint(0, raws[randFileIdx].n_times-windowSize)
+    
+    data=[]
+    for ch in range(0, nChannels):
+        data_i,_=raws[randFileIdx][ch,randomIdx:randomIdx+windowSize]
+        data.append(data_i)
+    data = np.vstack(data)
+# if returnData:
+#     return randFileIdx,randomChannelIdx,randomIdx,data
+# else:
+#     return randFileIdx,randomChannelIdx,randomIdx
+import data_utils_channelIndp as duCI
+
+def mytransform(raw):
+    raw.filter(0.1,40)
+    raw._data=raw._data*1e6
+    return raw
+
+pl.seed_everything(42, workers=True)
+
+batchSize= 10000
+channelIdxs=[1,19,23] 
+valSub=0
+beforePts=512*2
+afterPts=0
+targetPts=96
+
+bidsPath= 'Y:\\NTdata\\BIDS\\EESM17\\'
+subjectIds=mb.get_entity_vals(bidsPath,'subject', with_key=False)
+trainIds=subjectIds.copy()
+trainIds.pop(valSub)
+
+for _ in range(6): # Remove some files 
+    trainIds.pop(0)
+
+trainPaths=duCI.returnFilePaths(bidsPath,trainIds,sessionIds=['001']) # There is onlyone session in small dataset
+valPaths=duCI.returnFilePaths(bidsPath,[subjectIds[valSub]],sessionIds=['001'])
+
+print('Loading training data')
+ds_train_CHI =duCI.EEG_dataset_from_paths(trainPaths, beforePts=beforePts,
+                                   afterPts=0,targetPts=targetPts, 
+                                   channelIdxs=channelIdxs,preprocess=False,
+                                    limit=None,train_size = 100000,
+                                   transform=mytransform)
+dl_train=torch.utils.data.DataLoader(ds_train_CHI, batch_size=batchSize, shuffle=True)
+
+train_iter = iter(dl_train)
+inputs, y = next(train_iter)
+
+print('Loading validation data, subject = ' + subjectIds[valSub])
+ds_val_CHI = duCI.EEG_dataset_from_paths(valPaths, beforePts=beforePts,afterPts=0,
+                                 targetPts=targetPts, channelIdxs=1,
+                                 preprocess=False,limit=100000,
+                                 transform=mytransform)
+dl_val=torch.utils.data.DataLoader(ds_val_CHI, batch_size=batchSize)
+
+val_iter = iter(dl_val)
+inputs, y = next(val_iter)
+x = inputs.unfold(dimension = 2, size = patch_length, 
+             step = step)
 
 
-Overlapping 
-Going into input_net()
-Going into transformer()
-input shape:  torch.Size([10000, 62, 64])
-qkv weights shape:  torch.Size([192, 64])
-Uq shape  torch.Size([10000, 16, 62, 4])
-q shape:  torch.Size([10000, 16, 62, 4])
-to be multiplied:  torch.Size([10000, 16, 62, 62])  
-    other  torch.Size([10000, 16, 62, 62])
+from ChannelIndpTransformerModel import ChiIndTUPEOverlappingTransformer
 
-input shape:  torch.Size([10000, 62, 64])
-qkv weights shape:  torch.Size([192, 64])
-Uq shape  torch.Size([10000, 16, 62, 4])
-q shape:  torch.Size([10000, 16, 62, 4])
-to be multiplied:  torch.Size([10000, 16, 62, 62])  
-    other  torch.Size([10000, 16, 62, 62])
+transf_model = ChiIndTUPEOverlappingTransformer(
+    context_size=512+512, 
+    patch_size=32,
+    step=16,
+    output_dim=96,
+    model_dim=32,
+    num_heads=16,
+    num_layers=3,
+    lr=0.001,
+    warmup=1,
+    max_iters=100,
+    dropout=0.2,
+    input_dropout=0.2,
+    mask = None)
 
-input shape:  torch.Size([10000, 62, 64])
-qkv weights shape:  torch.Size([192, 64])
-Uq shape  torch.Size([10000, 16, 62, 4])
-q shape:  torch.Size([10000, 16, 62, 4])
-to be multiplied:  torch.Size([10000, 16, 62, 62])  
-    other  torch.Size([10000, 16, 62, 62])
-Going into output_net()
+early_stopping = EarlyStopping(monitor="val_loss", min_delta=0.00,
+                               patience=25, verbose=False, mode="min")
 
-#Overlapping + model_dim = 32
-Going into input_net()
-Going into transformer()
-input shape:  torch.Size([10000, 62, 32])
-qkv weights shape:  torch.Size([96, 32])
-Uq shape  torch.Size([10000, 16, 62, 2])
-q shape:  torch.Size([10000, 16, 62, 2])
-to be multiplied:  torch.Size([10000, 16, 62, 62])  other  torch.Size([10000, 16, 62, 62])
-input shape:  torch.Size([10000, 62, 32])
-qkv weights shape:  torch.Size([96, 32])
-Uq shape  torch.Size([10000, 16, 62, 2])
-q shape:  torch.Size([10000, 16, 62, 2])
-to be multiplied:  torch.Size([10000, 16, 62, 62])  other  torch.Size([10000, 16, 62, 62])
-input shape:  torch.Size([10000, 62, 32])
-qkv weights shape:  torch.Size([96, 32])
-Uq shape  torch.Size([10000, 16, 62, 2])
-q shape:  torch.Size([10000, 16, 62, 2])
-to be multiplied:  torch.Size([10000, 16, 62, 62])  other  torch.Size([10000, 16, 62, 62])
-Going into output_net()
-Going into input_net()
-Going into transformer()
-input shape:  torch.Size([10000, 62, 32])
-qkv weights shape:  torch.Size([96, 32])
-Uq shape  torch.Size([10000, 16, 62, 2])
-q shape:  torch.Size([10000, 16, 62, 2])
-to be multiplied:  torch.Size([10000, 16, 62, 62])  other  torch.Size([10000, 16, 62, 62])
-input shape:  torch.Size([10000, 62, 32])
-qkv weights shape:  torch.Size([96, 32])
-Uq shape  torch.Size([10000, 16, 62, 2])
-q shape:  torch.Size([10000, 16, 62, 2])
-to be multiplied:  torch.Size([10000, 16, 62, 62])  other  torch.Size([10000, 16, 62, 62])
-input shape:  torch.Size([10000, 62, 32])
-qkv weights shape:  torch.Size([96, 32])
-Uq shape  torch.Size([10000, 16, 62, 2])
-q shape:  torch.Size([10000, 16, 62, 2])
-to be multiplied:  torch.Size([10000, 16, 62, 62])  other  torch.Size([10000, 16, 62, 62])
-Going into output_net()
-"""
+trainer = pl.Trainer(#logger=neptune_logger,
+                     accelerator='auto', #devices=1, # Devices = number of gpus 
+                     callbacks=[early_stopping],
+                     max_epochs=3,
+                     log_every_n_steps=10)
+
+trainer.fit(transf_model, dl_train, dl_val)
+
+transf_model(inputs)

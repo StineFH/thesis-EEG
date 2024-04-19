@@ -33,7 +33,6 @@ class CosineWarmupScheduler(optim.lr_scheduler._LRScheduler):
         return self.net(x)
 
 ################################### Encoder ###################################
-#https://uvadlc-notebooks.readthedocs.io/en/latest/tutorial_notebooks/tutorial6/Transformers_and_MHAttention.html
 def tupe_product(q, k):
     d = q.size()[-1]
     attn = torch.matmul(q, k.transpose(-2, -1))
@@ -65,7 +64,7 @@ class TUPEMultiheadAttention(nn.Module):
         nn.init.xavier_uniform_(self.Wo_proj.weight)
         nn.init.xavier_uniform_(self.UqUk_proj.weight)
         
-    def forward(self, x, PE):
+    def forward(self, x, PE, PE_r):
         """
         Take in query, key, value i.e. x, x, x. 
         Return:  Tuple(tensor, optional(tensor))
@@ -83,7 +82,6 @@ class TUPEMultiheadAttention(nn.Module):
         batch_size, patch_length, input_dim = x.size()
         head_dim = self.embed_dim // self.num_heads
         # First project x into q, k, and v i.e. multiply 
-
         qkv = self.Wqkv_proj(x) # torch.Size([10, 16, 64]) -> torch.Size([10, 16, 192])
         PE_term = self.UqUk_proj(PE)
         
@@ -93,17 +91,18 @@ class TUPEMultiheadAttention(nn.Module):
         # Is that correctly understood? 
         PE_term = PE_term.permute(0, 2, 1, 3) # [Batch, Head, no patches, head_dim]
         Uq, Uk= PE_term.chunk(2, dim=-1)
+        
         # Separate Q, K, V from linear output
         qkv = qkv.reshape(batch_size, -1, self.num_heads, 3*head_dim)
         # patches are divided across heads to be processed i.e. 16 patches of length 4 are processed on 16 differen heads
         # Is that correctly understood? 
         qkv = qkv.permute(0, 2, 1, 3) # [Batch, Head, no pathces, head_dim]
         q, k, v = qkv.chunk(3, dim=-1)
-
+        
         PE_attn = tupe_product(Uq, Uk)
         word_attn = tupe_product(q, k)
 
-        attention = nn.functional.softmax(PE_attn + word_attn, dim=-1)
+        attention = nn.functional.softmax(PE_attn + word_attn + PE_r, dim=-1)
         values = torch.matmul(attention, v)
 
         values = values.permute(0, 2, 1, 3) # [Batch, SeqLen, Head, Dims]
@@ -140,9 +139,9 @@ class EncoderBlock(nn.Module):
         self.norm2 = nn.LayerNorm(embed_dim)
         self.dropout = nn.Dropout(dropout)
 
-    def forward(self, x, PE, mask=None):
+    def forward(self, x, PE, PE_r, mask=None):
         # Attention part
-        attn_out = self.TUPE_attn(x, PE)
+        attn_out = self.TUPE_attn(x, PE, PE_r)
         x = x + self.dropout(attn_out)
         x = self.norm1(x)
 
@@ -163,16 +162,78 @@ class TransformerEncoder(nn.Module):
             x = layer(x, PE, mask=mask)
         return x
 
-    def get_attention_maps(self, x, PE, mask=None):
+    def get_attention_maps(self, x, PE, PE_r, mask=None):
         attention_maps = []
         for idx, layer in enumerate(self.layers):
             print("Going into layer ", idx, "in TransformerEncoder")
-            _, attn_map = layer.self_attn(x, PE, mask=mask, return_attention=True)
+            _, attn_map = layer.self_attn(x, PE, PE_r, mask=mask, return_attention=True)
             attention_maps.append(attn_map)
             x = layer(x)
         return attention_maps
 
 ################################# Transformer #################################
+# from einops import rearrange
+# def relative_to_absolute(Q_Er):
+#     """
+#     Converts the dimension that is specified from the axis
+#     from relative distances (with length 2*tokens-1) to absolute distance (length tokens)
+#       Input: [bs, heads, length, 2*length - 1]
+#       Output: [bs, heads, length, length]
+#     """
+#     b, h, l, _, device, dtype = *Q_Er.shape, Q_Er.device, Q_Er.dtype
+#     dd = {'device': device, 'dtype': dtype}
+#     # Padding with 0 vector
+#     col_pad = torch.zeros((b, h, l, 1), **dd)
+#     x = torch.cat((Q_Er, col_pad), dim=3)  # zero pad 2l-1 to 2l
+#     # flatten
+#     flat_x = rearrange(x, 'b h l c -> b h (l c)')
+#     # Padding 3 
+#     flat_pad = torch.zeros((b, h, l - 1), **dd)
+#     flat_x_padded = torch.cat((flat_x, flat_pad), dim=2)
+#     #Rearrange 
+#     final_x = flat_x_padded.reshape(b, h, l + 1, 2 * l - 1)
+#     final_x = final_x[:, :, :l, (l - 1):]
+#     return final_x
+# class PositionalEmbedding(nn.Module):
+#     def __init__(self, no_patches, heads, head_dim, share_heads=False):
+#         """
+#             Relative Positional embedding as in 
+#         """
+#         super().__init__()
+#         if self.shared_heads:
+#            self.PE = nn.Parameter(torch.randn(2*no_patches-1, head_dim))
+#         else:
+#            self.PE = nn.Parameter(torch.randn(heads, 2*no_patches-1, head_dim))
+
+#     def forward(self, q):
+#         if self.shared_heads:
+#             Q_Er = torch.einsum('b h t d, r d -> b h t r', q, self.PE)
+#         else:
+#             Q_Er = torch.einsum('b h t d, h r d -> b h t r', q, self.PE)
+#         return relative_to_absolute(Q_Er)
+# def skew(QEr):
+#     #https://jaketae.github.io/study/relative-positional-encoding/
+#     # QEr.shape = (batch_size, num_heads, seq_len, seq_len)
+#     padded = F.pad(QEr, (1, 0))
+#     # padded.shape = (batch_size, num_heads, seq_len, 1 + seq_len)
+#     batch_size, num_heads, num_rows, num_cols = padded.shape
+#     reshaped = padded.reshape(batch_size, num_heads, num_cols, num_rows)
+#     # reshaped.size = (batch_size, num_heads, 1 + seq_len, seq_len)
+#     Srel = reshaped[:, :, 1:, :]
+#     # Srel.shape = (batch_size, num_heads, seq_len, seq_len)
+#     return Srel
+
+# class PositionalEmbedding(nn.Module):
+#     def __init__(self, patch_length, head_dim):
+#         """
+#             Relative Positional embedding as in 
+#         """
+#         super().__init__()
+#         self.patch_length = patch_length
+#         self.Er = nn.Parameter(torch.randn(patch_length, head_dim))
+
+#     def forward(self):
+#         return self.Er.transpose(0, 1)
 
 class PositionalEncoding(nn.Module):
     def __init__(self, d_model, max_len=5000):
@@ -200,6 +261,7 @@ class PositionalEncoding(nn.Module):
     def forward(self, x):
         return self.pe[:, : x.size(1)].repeat(x.size(0), 1, 1)
 
+#https://uvadlc-notebooks.readthedocs.io/en/latest/tutorial_notebooks/tutorial6/Transformers_and_MHAttention.html
 class TUPEOverlappingTransformer(pl.LightningModule):
     def __init__(
         self,
@@ -230,8 +292,11 @@ class TUPEOverlappingTransformer(pl.LightningModule):
             nn.Linear(self.hparams.patch_size, self.hparams.model_dim)
         )
         
-        # Positional encoding for sequences
+        # Absolute PE 
         self.positional_encoding = PositionalEncoding(d_model=self.hparams.model_dim)
+       
+        # Relative Learnable Positional Embedding 
+        self.PE_b = nn.Parameter(torch.randn(patch_size, patch_size)).transpose(0, 1)
         
         # Transformer
         self.transformer = TransformerEncoder(
@@ -291,21 +356,19 @@ class TUPEOverlappingTransformer(pl.LightningModule):
         self.logger.log_hyperparams(self.hparams)
     
     def forward(self, inputs):
-        if isinstance(inputs, list):
-            x1, x2 = inputs
-            #input x1 and x2: returns as (batch,sequence,patch_size)
-            x1=self.contextBlockFunc(x1)
-            x2=self.contextBlockFunc(x2)
-            x=torch.cat((x1,x2),dim=1)
-        else: # If we only have points before target i.e. afterPts==0
-            x=self.contextBlockFunc(inputs)
+        x1, x2 = inputs
+
+        #input x1 and x2: returns as (batch,sequence,patch_size)
+        x1=self.contextBlockFunc(x1)
+        x2=self.contextBlockFunc(x2)
+        x=torch.cat((x1,x2),dim=1)
         PE = self.positional_encoding(x)
         
         #forward pass
         print("Going into input_net()")
         x = self.input_net(x)
         print("Going into transformer()")
-        x = self.transformer(x, PE, mask=self.hparams.mask) # Might need to do something different with mask 
+        x = self.transformer(x, PE, self.PE_b, mask=self.hparams.mask) # Might need to do something different with mask 
         print("Going into output_net()")
         x=self.output_net(x)
 

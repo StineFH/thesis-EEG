@@ -153,8 +153,8 @@ def runExperiment(
 ################################ Run Experiment ###############################
 
 targetPts=96
-beforePts=512
-afterPts=512
+beforePts=512*2
+afterPts=0
 patch_size = 64
 step = 32
 

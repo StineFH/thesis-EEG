@@ -63,7 +63,7 @@ class EEG_dataset_from_paths(torch.utils.data.Dataset):
         self.beforePts = beforePts
         self.afterPts = afterPts
         self.targetPts = targetPts
-        self.channelIdxs=channelIdxs
+        self.channelIdxs= channelIdxs if isinstance(channelIdxs, list) else [channelIdxs]
         self.nChannels=len(channelIdxs) if isinstance(channelIdxs, (list,tuple,range)) else 1
         self.file_paths=[str(fp) for fp in bidsPaths]
         self.limit=limit #if 
@@ -74,8 +74,6 @@ class EEG_dataset_from_paths(torch.utils.data.Dataset):
         #preload:
         self.raws=[]
         nfilesToLoad=min(maxFilesLoaded,len(self.file_paths))
-        # Take nfiles randomly but not replaced so this is just all the files ??? 
-        # Is it to get them in random order? THIS LINE BELOW DOES NOTHING 
         fileIdxToLoad=np.random.choice(len(self.file_paths),nfilesToLoad,replace=False)
 
         for fileIdx in fileIdxToLoad:
@@ -96,18 +94,10 @@ class EEG_dataset_from_paths(torch.utils.data.Dataset):
             except Exception as error:
                 print(error)
                 print(self.file_paths[fileIdx])
-
-            # return tempRaw
-        
-        # #loading raw files in parallel:
-        # print('Loading files in parallel:')
-        # self.raws = Parallel(n_jobs=np.min((3,cpu_count())), verbose=1, backend="threading")(map(delayed(lambda fileIdx: rawLoader(self,fileIdx)),fileIdxToLoad))
-        
         
         if limit:
-            self.dataDraws=np.zeros((self.__len__(),3),np.int64) #columns for: file, channel, time
+            self.dataDraws=np.zeros((self.__len__(),2),np.int64) #columns for: file, time
             print('Preparing ready-made data draws...')
-
 
             def myfun(arg):
                 result=self.getAllowedDatapoint()
@@ -116,14 +106,6 @@ class EEG_dataset_from_paths(torch.utils.data.Dataset):
             results = Parallel(n_jobs=np.max((1,cpu_count()-1)), verbose=1, backend="threading")(map(delayed(myfun), range(self.__len__())))
 
             self.dataDraws=np.asarray(results)
-
-            # for i in range(self.__len__()):
-
-            #     randFileIdx,channelIdx,randomIdx=self.getAllowedDatapoint()
-                
-            #     self.dataDraws[i,0]=randFileIdx
-            #     self.dataDraws[i,1]=channelIdx
-            #     self.dataDraws[i,2]=randomIdx
 
     def determineMemoryCapacity(self):
         #determine how much space we can use for pre-loaded data:
@@ -148,16 +130,19 @@ class EEG_dataset_from_paths(torch.utils.data.Dataset):
 
         while np.any(np.isnan(data)):            
             randFileIdx=np.random.randint(0, len(self.raws))    
-            randomChannelIdx=np.random.choice(self.nChannels)
             randomIdx=np.random.randint(0, self.raws[randFileIdx].n_times-windowSize)
 
-            data,_=self.raws[randFileIdx][randomChannelIdx,randomIdx:randomIdx+windowSize]
-
+            data=[]
+            for ch in range(0, self.nChannels):
+                data_i,_=self.raws[randFileIdx][ch,randomIdx:randomIdx+windowSize]
+                data.append(data_i)
+            data = np.vstack(data).reshape(1,self.nChannels, windowSize)
+        
         if returnData:
-            return randFileIdx,randomChannelIdx,randomIdx,data
+            return randFileIdx,randomIdx,data
         else:
-            return randFileIdx,randomChannelIdx,randomIdx
-
+            return randFileIdx,randomIdx
+        
 
     def __len__(self):
         if self.limit:
@@ -173,12 +158,15 @@ class EEG_dataset_from_paths(torch.utils.data.Dataset):
         if self.limit:
             #uses a predefined list of data points
             fileIdx=self.dataDraws[idx,0]
-            channelIdx=self.dataDraws[idx,1]
-            randomIdx=self.dataDraws[idx,2]
-            data,_ = self.raws[fileIdx][channelIdx,randomIdx:randomIdx+windowSize]
+            randomIdx=self.dataDraws[idx,1]
+            data=[]
+            for ch in range(0, self.nChannels):
+                data_i,_=self.raws[fileIdx][ch,randomIdx:randomIdx+windowSize]
+                data.append(data_i)
+            data = np.vstack(data).reshape(1,self.nChannels, windowSize)
         else:
             #randomly selects a data point from all possible:
-            fileIdx,randomChannelIdx,randomIdx,data=self.getAllowedDatapoint(returnData=True)
+            fileIdx,randomIdx,data=self.getAllowedDatapoint(returnData=True)
     
         #make sure there are no nan's in the data:
         assert(not np.any(np.isnan(data)))
