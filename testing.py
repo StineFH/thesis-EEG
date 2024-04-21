@@ -60,7 +60,6 @@ val_iter = iter(dl_val)
 inputs, y = next(val_iter)
 
 from TUPETransformerModel import TUPEOverlappingTransformer
-
 transf_model = TUPEOverlappingTransformer(
     context_size=512+512, 
     patch_size=32,
@@ -89,6 +88,7 @@ trainer = pl.Trainer(#logger=neptune_logger,
 trainer.fit(transf_model, dl_train, dl_val)
 
 transf_model(inputs)
+
 ############################# Calculate prediction error #####################
 # Test Fit model multiple heads + layers 
 from BasicTransformerModel import Transformer
