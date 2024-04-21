@@ -83,7 +83,6 @@ class EEG_dataset_from_paths(torch.utils.data.Dataset):
                 tempRaw=mne.io.read_raw_eeglab(self.file_paths[fileIdx],preload=True,verbose=False)
 
                 channelsToExclude=(1- np.isin(range(0,tempRaw.info['nchan']),self.channelIdxs)).nonzero()[0].astype('int')
-                # import pdb; pdb.set_trace()
                 channelsToExclude=np.asarray(tempRaw.ch_names)[channelsToExclude]
                 tempRaw.drop_channels(channelsToExclude)
 
@@ -175,57 +174,11 @@ class EEG_dataset_from_paths(torch.utils.data.Dataset):
         data = torch.tensor(data, dtype=torch.float32)
 
         if self.afterPts == 0:
-            x12 = (data[0,0:self.beforePts])
-            target = data[0,self.beforePts:]
+            x12 = (data[0, :, 0:self.beforePts])
+            target = data[0, :, self.beforePts:]
         else: 
-            x12 = (data[0,0:self.beforePts], data[0,-self.afterPts:])
-            target = data[0,self.beforePts:(-self.afterPts)]
+            x12 = (data[0, :,0:self.beforePts], data[0, :,-self.afterPts:])
+            target = data[0, :,self.beforePts:(-self.afterPts)]
 
         return x12,target
-
-
-
-# if __name__ == "__main__":
-    # import mne_bids as mb
-
-    # bidsPath="C:/Users/au207178/OneDrive - Aarhus Universitet/forskning/EEGprediction/localData/train/"
-
-
-    # subjectIds=mb.get_entity_vals(bidsPath,'subject',with_key=False)
-    # trainIds=subjectIds.copy()
-    # trainIds.pop(1)
-    # trainPaths=returnFilePaths(bidsPath,trainIds,sessionIds=['001', '002', '003', '004'])
-
-    # def myFun(hep,fpath):
-    #     try:
-    #         tempRaw=mne.io.read_raw_eeglab(fpath,preload=True,verbose=False)
-    #         return tempRaw
-    #     except Exception as error:
-    #         print(error)
-    #         print(fpath)
-
-    # myFun2 = lambda fpath: myFun(1,fpath)
-
-    # raws = Parallel(n_jobs=2, verbose=1, backend="threading")(map(delayed(lambda fpath: myFun(1,fpath)), trainPaths))
-
-
-    # def mytransform(raw):
-    #     raw.filter(0.1,40)
-    #     raw._data=raw._data*1e6
-    #     return raw
-
-    # bidsPath="C:/Users/au207178/OneDrive - Aarhus Universitet/forskning/EEGprediction/localData/train/"
-
-
-    # subjectIds=mb.get_entity_vals(bidsPath,'subject',with_key=False)
-    # trainIds=subjectIds.copy()
-    # trainIds.pop(1)
-    # trainPaths=returnFilePaths(bidsPath,trainIds,sessionIds=['001', '002', '003', '004'])
-
-    # ds_train=EEG_dataset_from_paths(trainPaths, beforePts=500,afterPts=500,targetPts=100, channelIdxs=[1,7,23],preprocess=False,limit=None,transform=mytransform)
-
-
-
-
-        
 

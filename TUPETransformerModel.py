@@ -215,7 +215,8 @@ class TUPEOverlappingTransformer(pl.LightningModule):
         max_iters=1000,
         dropout=0.0,
         input_dropout=0.0,
-        mask = None
+        mask = None,
+        only_before=True
     ):
         super().__init__()
         self.save_hyperparameters()
@@ -244,7 +245,10 @@ class TUPEOverlappingTransformer(pl.LightningModule):
         )
         
         # Output layer
-        flattenOutSize= int((((self.hparams.context_size/2)-self.hparams.patch_size)/self.hparams.step+1)*2*self.hparams.model_dim)
+        if only_before == True: 
+            flattenOutSize= int(((self.hparams.context_size - self.hparams.patch_size)/self.hparams.step+1)*self.hparams.model_dim)
+        else: 
+            flattenOutSize= int((((self.hparams.context_size/2)-self.hparams.patch_size)/self.hparams.step+1)*2*self.hparams.model_dim)
         
         self.output_net = nn.Sequential(
             nn.Flatten(),
@@ -283,8 +287,8 @@ class TUPEOverlappingTransformer(pl.LightningModule):
     def contextBlockFunc(self, x):
         #returns a list of patches i.e. cuts the input into smaller patches 
         #assumes input is (batch,sequence)
-        x = x.unfold(dimension = 1, size = self.hparams.patch_size, 
-                     step = self.hparams.step) # batch_size x no. patches x stride
+        x = x.unfold(dimension = 1, size = self.hparams.patch_size,
+                     step = self.hparams.step)    
         return x
     
     def on_train_start(self):
@@ -302,23 +306,24 @@ class TUPEOverlappingTransformer(pl.LightningModule):
         PE = self.positional_encoding(x)
         
         #forward pass
-        print("Going into input_net()")
         x = self.input_net(x)
-        print("Going into transformer()")
         x = self.transformer(x, PE, mask=self.hparams.mask) # Might need to do something different with mask 
-        print("Going into output_net()")
         x=self.output_net(x)
 
         return x
     
     def training_step(self, batch, batch_idx):
         x,y=batch
-        x1,x2=x
         
-        # Ensure splitting into blocks can be done exactly
-        assert x1.shape[1]%self.hparams.patch_size==0 , print("x1 has wrong shape", x1.shape,self.hparams.patch_size)
-        assert x2.shape[1]%self.hparams.patch_size==0, print("x2 has wrong shape", x2.shape,self.hparams.patch_size)
-        assert y.shape[1]==self.hparams.output_dim, print("y has wrong shape", y.shape,self.hparams.output_dim)
+        if isinstance(x, list):
+            x1,x2=x
+            # Ensure splitting into blocks can be done exactly
+            assert x1.shape[2]%self.hparams.patch_size==0 , print("x1 has wrong shape", x1.shape,self.hparams.patch_size)
+            assert x2.shape[2]%self.hparams.patch_size==0, print("x2 has wrong shape", x2.shape,self.hparams.patch_size)
+            assert y.shape[2]==self.hparams.output_dim, print("y has wrong shape", y.shape,self.hparams.output_dim)
+        else: 
+            assert x.shape[2]%self.hparams.patch_size==0, print("x has wrong shape", x.shape,self.hparams.patch_size)
+            assert y.shape[2]==self.hparams.output_dim, print("y has wrong shape", y.shape,self.hparams.output_dim)
         
         pred = self.forward(x)
         loss = F.mse_loss(pred, y)

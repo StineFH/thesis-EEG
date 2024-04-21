@@ -166,7 +166,6 @@ class TransformerEncoder(nn.Module):
     def get_attention_maps(self, x, PE, mask=None):
         attention_maps = []
         for idx, layer in enumerate(self.layers):
-            print("Going into layer ", idx, "in TransformerEncoder")
             _, attn_map = layer.self_attn(x, PE, mask=mask, return_attention=True)
             attention_maps.append(attn_map)
             x = layer(x)
@@ -215,7 +214,8 @@ class ChiIndTUPEOverlappingTransformer(pl.LightningModule):
         max_iters=1000,
         dropout=0.0,
         input_dropout=0.0,
-        mask = None
+        mask = None,
+        only_before = True
     ):
         super().__init__()
         self.save_hyperparameters()
@@ -244,7 +244,10 @@ class ChiIndTUPEOverlappingTransformer(pl.LightningModule):
         )
         
         # Output layer
-        flattenOutSize= int((((self.hparams.context_size/2)-self.hparams.patch_size)/self.hparams.step+1)*2*self.hparams.model_dim)
+        if only_before == True: 
+            flattenOutSize= int(((self.hparams.context_size - self.hparams.patch_size)/self.hparams.step+1)*self.hparams.model_dim)
+        else: 
+            flattenOutSize= int((((self.hparams.context_size/2)-self.hparams.patch_size)/self.hparams.step+1)*2*self.hparams.model_dim)
         
         self.output_net = nn.Sequential(
             nn.Flatten(),
@@ -326,6 +329,8 @@ class ChiIndTUPEOverlappingTransformer(pl.LightningModule):
             assert y.shape[2]==self.hparams.output_dim, print("y has wrong shape", y.shape,self.hparams.output_dim)
         
         pred = self.forward(x)
+        B, C, NP = y.shape
+        y = y.reshape(B*C, NP)
         loss = F.mse_loss(pred, y)
         
         self.log("train_loss", loss, on_step=True, on_epoch=True, prog_bar=False, logger=True)
@@ -335,6 +340,8 @@ class ChiIndTUPEOverlappingTransformer(pl.LightningModule):
         
     def validation_step(self, batch, batch_idx):
         x,y = batch
+        B, C, NP = y.shape
+        y = y.reshape(B*C, NP)
         
         pred = self.forward(x)
         loss = self.metric(pred, y)

@@ -5,7 +5,7 @@ import pytorch_lightning as pl
 
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 
-import data_utils4 as du
+import data_utils_channelIndp as du
 
 from TUPETransformerModel import TUPEOverlappingTransformer
 
@@ -80,7 +80,7 @@ def runExperiment(
     
     print('Loading validation data, subject = ' + subjectIds[valSub])
     ds_val=du.EEG_dataset_from_paths(valPaths, beforePts=beforePts,afterPts=afterPts,
-                                     targetPts=targetPts, channelIdxs=1,
+                                     targetPts=targetPts, channelIdxs=channelIdxs,
                                      preprocess=False,limit=limit_val,transform=mytransform
                                      )
     dl_val=torch.utils.data.DataLoader(ds_val, batch_size=batchSize,
@@ -94,9 +94,9 @@ def runExperiment(
     neptune_logger = pl.loggers.NeptuneLogger(
         api_key = NEPTUNE_API_TOKEN,
         project="stinefh/thesis-EEG", 
-        source_files=["run_TUPETransformer.py", 
-                      "data_utils4.py", 
-                      "TUPETransformerModel.py"]
+        source_files=["run_CHIndTUPETransformer.py", 
+                      "data_utils_channelIndp.py", 
+                      "ChannelIndpTransformerModel.py"]
         # tags=neptuneTags
         )
     neptune_logger.log_hyperparams({'valSub':subjectIds[valSub]})
@@ -119,7 +119,7 @@ def runExperiment(
         dropout=0.2,
         input_dropout=0.2,
         mask = None,
-        only_before=True) 
+        only_before=False) 
     early_stopping = EarlyStopping(monitor="val_loss", min_delta=0.00,
                                    patience=25, verbose=False, mode="min")
     
@@ -153,15 +153,15 @@ def runExperiment(
 
 ################################ Run Experiment ###############################
 targetPts=96
-beforePts=512*2
-afterPts=0
+beforePts=512
+afterPts=512
 patch_size = 64
 step = 32
 
 sessionIds = ['001', '002'] # i-e. only about half the data in EESM19
-limit = 100000 # Validation dataset size
-train_size = 620000 # Train dataset size 
-batchSize= 10000
+limit = 33330 #100000 # Validation dataset size
+train_size = 206646 #620000 # Train dataset size 
+batchSize= 3333
 channelIdxs=[1,19,23]
 valSub=0
 max_iters = 18800

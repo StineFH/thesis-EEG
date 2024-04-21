@@ -96,13 +96,6 @@ class EEG_dataset_from_paths(torch.utils.data.Dataset):
             except Exception as error:
                 print(error)
                 print(self.file_paths[fileIdx])
-
-            # return tempRaw
-        
-        # #loading raw files in parallel:
-        # print('Loading files in parallel:')
-        # self.raws = Parallel(n_jobs=np.min((3,cpu_count())), verbose=1, backend="threading")(map(delayed(lambda fileIdx: rawLoader(self,fileIdx)),fileIdxToLoad))
-        
         
         if limit:
             self.dataDraws=np.zeros((self.__len__(),3),np.int64) #columns for: file, channel, time
@@ -117,13 +110,6 @@ class EEG_dataset_from_paths(torch.utils.data.Dataset):
 
             self.dataDraws=np.asarray(results)
 
-            # for i in range(self.__len__()):
-
-            #     randFileIdx,channelIdx,randomIdx=self.getAllowedDatapoint()
-                
-            #     self.dataDraws[i,0]=randFileIdx
-            #     self.dataDraws[i,1]=channelIdx
-            #     self.dataDraws[i,2]=randomIdx
 
     def determineMemoryCapacity(self):
         #determine how much space we can use for pre-loaded data:
@@ -187,57 +173,10 @@ class EEG_dataset_from_paths(torch.utils.data.Dataset):
         data = torch.tensor(data, dtype=torch.float32)
 
         if self.afterPts == 0:
-            x12 = (data[0,0:self.beforePts])
-            target = data[0,self.beforePts:]
+            x12 = (data[0, 0:self.beforePts])
+            target = data[0, self.beforePts:]
         else: 
-            x12 = (data[0,0:self.beforePts], data[0,-self.afterPts:])
-            target = data[0,self.beforePts:(-self.afterPts)]
+            x12 = (data[0, 0:self.beforePts], data[0, -self.afterPts:])
+            target = data[0, self.beforePts:(-self.afterPts)]
 
         return x12,target
-
-
-
-# if __name__ == "__main__":
-    # import mne_bids as mb
-
-    # bidsPath="C:/Users/au207178/OneDrive - Aarhus Universitet/forskning/EEGprediction/localData/train/"
-
-
-    # subjectIds=mb.get_entity_vals(bidsPath,'subject',with_key=False)
-    # trainIds=subjectIds.copy()
-    # trainIds.pop(1)
-    # trainPaths=returnFilePaths(bidsPath,trainIds,sessionIds=['001', '002', '003', '004'])
-
-    # def myFun(hep,fpath):
-    #     try:
-    #         tempRaw=mne.io.read_raw_eeglab(fpath,preload=True,verbose=False)
-    #         return tempRaw
-    #     except Exception as error:
-    #         print(error)
-    #         print(fpath)
-
-    # myFun2 = lambda fpath: myFun(1,fpath)
-
-    # raws = Parallel(n_jobs=2, verbose=1, backend="threading")(map(delayed(lambda fpath: myFun(1,fpath)), trainPaths))
-
-
-    # def mytransform(raw):
-    #     raw.filter(0.1,40)
-    #     raw._data=raw._data*1e6
-    #     return raw
-
-    # bidsPath="C:/Users/au207178/OneDrive - Aarhus Universitet/forskning/EEGprediction/localData/train/"
-
-
-    # subjectIds=mb.get_entity_vals(bidsPath,'subject',with_key=False)
-    # trainIds=subjectIds.copy()
-    # trainIds.pop(1)
-    # trainPaths=returnFilePaths(bidsPath,trainIds,sessionIds=['001', '002', '003', '004'])
-
-    # ds_train=EEG_dataset_from_paths(trainPaths, beforePts=500,afterPts=500,targetPts=100, channelIdxs=[1,7,23],preprocess=False,limit=None,transform=mytransform)
-
-
-
-
-        
-
