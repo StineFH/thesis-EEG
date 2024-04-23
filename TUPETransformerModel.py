@@ -318,12 +318,12 @@ class TUPEOverlappingTransformer(pl.LightningModule):
         if isinstance(x, list):
             x1,x2=x
             # Ensure splitting into blocks can be done exactly
-            assert x1.shape[2]%self.hparams.patch_size==0 , print("x1 has wrong shape", x1.shape,self.hparams.patch_size)
-            assert x2.shape[2]%self.hparams.patch_size==0, print("x2 has wrong shape", x2.shape,self.hparams.patch_size)
-            assert y.shape[2]==self.hparams.output_dim, print("y has wrong shape", y.shape,self.hparams.output_dim)
+            assert x1.shape[1]%self.hparams.patch_size==0 , print("x1 has wrong shape", x1.shape,self.hparams.patch_size)
+            assert x2.shape[1]%self.hparams.patch_size==0, print("x2 has wrong shape", x2.shape,self.hparams.patch_size)
+            assert y.shape[1]==self.hparams.output_dim, print("y has wrong shape", y.shape,self.hparams.output_dim)
         else: 
-            assert x.shape[2]%self.hparams.patch_size==0, print("x has wrong shape", x.shape,self.hparams.patch_size)
-            assert y.shape[2]==self.hparams.output_dim, print("y has wrong shape", y.shape,self.hparams.output_dim)
+            assert x.shape[1]%self.hparams.patch_size==0, print("x has wrong shape", x.shape,self.hparams.patch_size)
+            assert y.shape[1]==self.hparams.output_dim, print("y has wrong shape", y.shape,self.hparams.output_dim)
         
         pred = self.forward(x)
         loss = F.mse_loss(pred, y)

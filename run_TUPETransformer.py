@@ -119,7 +119,7 @@ def runExperiment(
         dropout=0.2,
         input_dropout=0.2,
         mask = None,
-        only_before=True) 
+        only_before=False) 
     early_stopping = EarlyStopping(monitor="val_loss", min_delta=0.00,
                                    patience=25, verbose=False, mode="min")
     
@@ -153,12 +153,12 @@ def runExperiment(
 
 ################################ Run Experiment ###############################
 targetPts=96
-beforePts=512*2
-afterPts=0
-patch_size = 64
-step = 32
+beforePts=512
+afterPts=512
+patch_size = 16
+step = 8
 
-sessionIds = ['001', '002'] # i-e. only about half the data in EESM19
+sessionIds = ['001', '002'] # .-e. only about half the data in EESM19
 limit = 100000 # Validation dataset size
 train_size = 620000 # Train dataset size 
 batchSize= 10000

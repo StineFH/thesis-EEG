@@ -1,17 +1,17 @@
 # Import raw EEG data 
 import mne_bids as mb
-import mne 
+# import mne 
 import torch
 import pytorch_lightning as pl
-import numpy as np 
+# import numpy as np 
 
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 
 import torch.nn as nn
-import math
+# import math
 
 import data_utils4 as du
-from LinearModel import linearModel
+# from LinearModel import linearModel
 
 def mytransform(raw):
     raw.filter(0.1,40)
@@ -23,8 +23,8 @@ pl.seed_everything(42, workers=True)
 batchSize= 10000
 channelIdxs=[1,19,23] 
 valSub=0
-beforePts=512
-afterPts=512
+beforePts=512*2
+afterPts=0
 targetPts=96
 
 bidsPath= 'Y:\\NTdata\\BIDS\\EESM17\\'
@@ -46,9 +46,6 @@ ds_train =du.EEG_dataset_from_paths(trainPaths, beforePts=beforePts,
                                    transform=mytransform)
 dl_train =torch.utils.data.DataLoader(ds_train, batch_size=batchSize, shuffle=True)
 
-train_iter = iter(dl_train)
-inputs, y = next(train_iter)
-
 print('Loading validation data, subject = ' + subjectIds[valSub])
 ds_val=du.EEG_dataset_from_paths(valPaths, beforePts=beforePts,afterPts=afterPts,
                                  targetPts=targetPts, channelIdxs=1,
@@ -56,16 +53,19 @@ ds_val=du.EEG_dataset_from_paths(valPaths, beforePts=beforePts,afterPts=afterPts
                                  transform=mytransform)
 dl_val=torch.utils.data.DataLoader(ds_val, batch_size=batchSize)
 
+train_iter = iter(dl_train)
+inputs, y = next(train_iter)
+
 val_iter = iter(dl_val)
 inputs, y = next(val_iter)
 
 from TUPETransformerModel import TUPEOverlappingTransformer
 transf_model = TUPEOverlappingTransformer(
     context_size=512+512, 
-    patch_size=32,
-    step=16,
+    patch_size=64,
+    step=32,
     output_dim=96,
-    model_dim=32,
+    model_dim=64,
     num_heads=8,
     num_layers=1,
     lr=0.001,
@@ -74,7 +74,7 @@ transf_model = TUPEOverlappingTransformer(
     dropout=0.2,
     input_dropout=0.2,
     mask = None, 
-    only_before=False) 
+    only_before=True) 
 
 early_stopping = EarlyStopping(monitor="val_loss", min_delta=0.00,
                                patience=25, verbose=False, mode="min")
