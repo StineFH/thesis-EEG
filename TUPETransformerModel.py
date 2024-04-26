@@ -81,6 +81,7 @@ class TUPEMultiheadAttention(nn.Module):
         """
 		# TUPE 
         batch_size, patch_length, input_dim = x.size()
+        print("x shape: ", x.shape)
         head_dim = self.embed_dim // self.num_heads
         # First project x into q, k, and v i.e. multiply 
 
@@ -90,7 +91,6 @@ class TUPEMultiheadAttention(nn.Module):
         # Separate U_q and U_k from linear output 
         PE_term = PE_term.reshape(batch_size, -1, self.num_heads, 2*head_dim)
         # patches are divided across heads to be processed i.e. 16 patches of length 4 are processed on 16 different heads
-        # Is that correctly understood? 
         PE_term = PE_term.permute(0, 2, 1, 3) # [Batch, Head, no patches, head_dim]
         Uq, Uk= PE_term.chunk(2, dim=-1)
         # Separate Q, K, V from linear output
@@ -99,9 +99,12 @@ class TUPEMultiheadAttention(nn.Module):
         # Is that correctly understood? 
         qkv = qkv.permute(0, 2, 1, 3) # [Batch, Head, no pathces, head_dim]
         q, k, v = qkv.chunk(3, dim=-1)
-
+        print("q size", q.shape, q.transpose(-2, -1).shape)
+        
         PE_attn = tupe_product(Uq, Uk)
         word_attn = tupe_product(q, k)
+        print("size of PE_attn: ", PE_attn.shape)
+        print("size of word_attn: ", word_attn.shape)
 
         attention = nn.functional.softmax(PE_attn + word_attn, dim=-1)
         values = torch.matmul(attention, v)

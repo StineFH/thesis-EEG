@@ -285,9 +285,9 @@ class ChiIndTUPEOverlappingTransformer(pl.LightningModule):
         
     def contextBlockFunc(self, x):
         #returns a list of patches i.e. cuts the input into smaller patches 
-        #assumes input is (batch,sequence)
+        #assumes input is (batch,channel, sequence)
         x = x.unfold(dimension = 2, size = self.hparams.patch_size, 
-                     step = self.hparams.step) # batch_size x no. patches x stride
+                     step = self.hparams.step) # batch_size x channels x no. patches x stride
         return x
     
     def on_train_start(self):
@@ -299,10 +299,9 @@ class ChiIndTUPEOverlappingTransformer(pl.LightningModule):
             #input x1 and x2: returns as (batch,sequence,patch_size)
             x1=self.contextBlockFunc(x1)
             x2=self.contextBlockFunc(x2)
-            x=torch.cat((x1,x2),dim=1)
+            x=torch.cat((x1,x2),dim=2) # second dimension because of channels now in first
         else: # If we only have points before target i.e. afterPts==0
             x=self.contextBlockFunc(inputs)
-            
         # Reshape from Batch x Channels x No Patches x Patch length -> Batch*Channels x No Patches x Patch length
         B, C, NP, LP = x.shape
         x = x.reshape(B*C, NP, LP)

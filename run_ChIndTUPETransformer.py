@@ -7,7 +7,7 @@ from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 
 import data_utils_channelIndp as du
 
-from TUPETransformerModel import TUPEOverlappingTransformer
+from ChannelIndpTransformerModel import ChiIndTUPEOverlappingTransformer
 
 pl.seed_everything(42, workers=True)
 
@@ -64,6 +64,7 @@ def runExperiment(
     subjectIds=mb.get_entity_vals(bidsPath,'subject', with_key=False)
     trainIds=subjectIds.copy()
     trainIds.pop(valSub)
+
     trainPaths=du.returnFilePaths(bidsPath,trainIds,sessionIds=sessionIds) # There is onlyone session in small dataset
     valPaths=du.returnFilePaths(bidsPath,[subjectIds[valSub]],sessionIds=sessionIds)
     
@@ -105,7 +106,7 @@ def runExperiment(
     neptune_logger.log_hyperparams({'lr schedular':"CosineWarmup"})
     
     ################## make Model, Earlystop, Trainer and Fit #################
-    transf_model = TUPEOverlappingTransformer(
+    transf_model = ChiIndTUPEOverlappingTransformer(
         context_size=beforePts+afterPts, 
         patch_size=patch_size,
         step = step,
@@ -141,6 +142,8 @@ def runExperiment(
     for _ in range(int(limit_val/batchSize)):
         x, y = next(iter_dl_val)
         pred = transf_model(x) 
+        B, C, NP = y.shape
+        y = y.reshape(B*C, NP)
         pred_er = abs(pred-y)
         pred_error.append(pred_er.detach().numpy()) # Add mean predicion over samples 
     

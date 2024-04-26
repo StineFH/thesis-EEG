@@ -157,9 +157,9 @@ class TransformerEncoder(nn.Module):
         super().__init__()
         self.layers = nn.ModuleList([EncoderBlock(**block_args) for _ in range(num_layers)])
 
-    def forward(self, x, PE, mask=None):
+    def forward(self, x, PE, PE_r, mask=None):
         for layer in self.layers:
-            x = layer(x, PE, mask=mask)
+            x = layer(x, PE, PE_r, mask=mask)
         return x
 
     def get_attention_maps(self, x, PE, PE_r, mask=None):
@@ -172,69 +172,76 @@ class TransformerEncoder(nn.Module):
         return attention_maps
 
 ################################# Transformer #################################
-# from einops import rearrange
-# def relative_to_absolute(Q_Er):
-#     """
-#     Converts the dimension that is specified from the axis
-#     from relative distances (with length 2*tokens-1) to absolute distance (length tokens)
-#       Input: [bs, heads, length, 2*length - 1]
-#       Output: [bs, heads, length, length]
-#     """
-#     b, h, l, _, device, dtype = *Q_Er.shape, Q_Er.device, Q_Er.dtype
-#     dd = {'device': device, 'dtype': dtype}
-#     # Padding with 0 vector
-#     col_pad = torch.zeros((b, h, l, 1), **dd)
-#     x = torch.cat((Q_Er, col_pad), dim=3)  # zero pad 2l-1 to 2l
-#     # flatten
-#     flat_x = rearrange(x, 'b h l c -> b h (l c)')
-#     # Padding 3 
-#     flat_pad = torch.zeros((b, h, l - 1), **dd)
-#     flat_x_padded = torch.cat((flat_x, flat_pad), dim=2)
-#     #Rearrange 
-#     final_x = flat_x_padded.reshape(b, h, l + 1, 2 * l - 1)
-#     final_x = final_x[:, :, :l, (l - 1):]
-#     return final_x
-# class PositionalEmbedding(nn.Module):
-#     def __init__(self, no_patches, heads, head_dim, share_heads=False):
-#         """
-#             Relative Positional embedding as in 
-#         """
-#         super().__init__()
-#         if self.shared_heads:
-#            self.PE = nn.Parameter(torch.randn(2*no_patches-1, head_dim))
-#         else:
-#            self.PE = nn.Parameter(torch.randn(heads, 2*no_patches-1, head_dim))
+import torch.nn as nn
 
-#     def forward(self, q):
-#         if self.shared_heads:
-#             Q_Er = torch.einsum('b h t d, r d -> b h t r', q, self.PE)
-#         else:
-#             Q_Er = torch.einsum('b h t d, h r d -> b h t r', q, self.PE)
-#         return relative_to_absolute(Q_Er)
-# def skew(QEr):
-#     #https://jaketae.github.io/study/relative-positional-encoding/
-#     # QEr.shape = (batch_size, num_heads, seq_len, seq_len)
-#     padded = F.pad(QEr, (1, 0))
-#     # padded.shape = (batch_size, num_heads, seq_len, 1 + seq_len)
-#     batch_size, num_heads, num_rows, num_cols = padded.shape
-#     reshaped = padded.reshape(batch_size, num_heads, num_cols, num_rows)
-#     # reshaped.size = (batch_size, num_heads, 1 + seq_len, seq_len)
-#     Srel = reshaped[:, :, 1:, :]
-#     # Srel.shape = (batch_size, num_heads, seq_len, seq_len)
-#     return Srel
+# https://gist.github.com/huchenxucs/c65524185e8e35c4bcfae4059f896c16
+class RelativePositionBias(nn.Module):
+    def __init__(self, bidirectional=True, num_buckets=32, max_distance=128, n_heads=8):
+        super(RelativePositionBias, self).__init__()
+        self.bidirectional = bidirectional
+        self.num_buckets = num_buckets
+        self.max_distance = max_distance
+        self.n_heads = n_heads
+        self.relative_attention_bias = nn.Embedding(self.num_buckets, self.n_heads)
+        
+    @staticmethod
+    def _relative_position_bucket(relative_position, bidirectional=True, num_buckets=32, max_distance=128):
+        """
+        Adapted from Mesh Tensorflow:
+        https://github.com/tensorflow/mesh/blob/0cb87fe07da627bf0b7e60475d59f95ed6b5be3d/mesh_tensorflow/transformer/transformer_layers.py#L593
 
-# class PositionalEmbedding(nn.Module):
-#     def __init__(self, patch_length, head_dim):
-#         """
-#             Relative Positional embedding as in 
-#         """
-#         super().__init__()
-#         self.patch_length = patch_length
-#         self.Er = nn.Parameter(torch.randn(patch_length, head_dim))
+        Args:
+            relative_position: an int32 Tensor
+            bidirectional: a boolean - whether the attention is bidirectional
+            num_buckets: an integer
+            max_distance: an integer
+        Returns:
+            a Tensor with the same shape as relative_position, containing int32
+            values in the range [0, num_buckets)
+        """
+        ret = 0
+        n = -relative_position
+        if bidirectional:
+            num_buckets //= 2
+            ret += (torch.tensor(n) < 0).to(torch.long) * num_buckets  
+            n = torch.abs(torch.tensor(n))
+        else:
+            n = torch.max(n, torch.zeros_like(n))
+        # now n is in the range [0, inf)
+        # half of the buckets are for exact increments in positions
+        max_exact = num_buckets // 2
+        is_small = n < max_exact
 
-#     def forward(self):
-#         return self.Er.transpose(0, 1)
+        # The other half of the buckets are for logarithmically bigger bins in positions up to max_distance
+        val_if_large = max_exact + (
+            torch.log(n.float() / max_exact) / math.log(max_distance / max_exact) * (num_buckets - max_exact)
+        ).to(torch.long)
+        val_if_large = torch.min(val_if_large, torch.full_like(val_if_large, num_buckets - 1))
 
+        ret += torch.where(is_small, n, val_if_large)
+        return ret
+
+    def compute_bias(self, qlen, klen):
+        """ Compute binned relative position bias """
+        context_position = torch.arange(qlen, dtype=torch.long,
+                                        device=self.relative_attention_bias.weight.device)[:, None]
+        memory_position = torch.arange(klen, dtype=torch.long,
+                                       device=self.relative_attention_bias.weight.device)[None, :]
+        relative_position = memory_position - context_position  # shape (qlen, klen)
+        rp_bucket = self._relative_position_bucket(
+            relative_position,  # shape (qlen, klen)
+            bidirectional=self.bidirectional,
+            num_buckets=self.num_buckets,
+        )
+        rp_bucket = rp_bucket.to(self.relative_attention_bias.weight.device)
+        values = self.relative_attention_bias(rp_bucket)  # shape (qlen, klen, num_heads)
+        values = values.permute([2, 0, 1]).unsqueeze(0)  # shape (1, num_heads, qlen, klen)
+        return values
+
+    def forward(self, qlen, klen):
+        return self.compute_bias(qlen, klen)  # shape (1, num_heads, qlen, klen)
+
+        
 class PositionalEncoding(nn.Module):
     def __init__(self, d_model, max_len=5000):
         """
@@ -262,7 +269,7 @@ class PositionalEncoding(nn.Module):
         return self.pe[:, : x.size(1)].repeat(x.size(0), 1, 1)
 
 #https://uvadlc-notebooks.readthedocs.io/en/latest/tutorial_notebooks/tutorial6/Transformers_and_MHAttention.html
-class TUPEOverlappingTransformer(pl.LightningModule):
+class RelativeTUPETransformer(pl.LightningModule):
     def __init__(
         self,
         context_size, 
@@ -296,7 +303,8 @@ class TUPEOverlappingTransformer(pl.LightningModule):
         self.positional_encoding = PositionalEncoding(d_model=self.hparams.model_dim)
        
         # Relative Learnable Positional Embedding 
-        self.PE_b = nn.Parameter(torch.randn(patch_size, patch_size)).transpose(0, 1)
+        self.R_PE = RelativePositionBias(bidirectional=True, num_buckets=32,
+                                         max_distance=128, n_heads=self.hparams.num_heads)
         
         # Transformer
         self.transformer = TransformerEncoder(
@@ -309,7 +317,8 @@ class TUPEOverlappingTransformer(pl.LightningModule):
         )
         
         # Output layer
-        flattenOutSize= int((((self.hparams.context_size/2)-self.hparams.patch_size)/self.hparams.step+1)*2*self.hparams.model_dim)
+        self.patches = int((((self.hparams.context_size/2)-self.hparams.patch_size)/self.hparams.step+1)*2)
+        flattenOutSize= int(self.patches*self.hparams.model_dim)
         
         self.output_net = nn.Sequential(
             nn.Flatten(),
@@ -363,12 +372,13 @@ class TUPEOverlappingTransformer(pl.LightningModule):
         x2=self.contextBlockFunc(x2)
         x=torch.cat((x1,x2),dim=1)
         PE = self.positional_encoding(x)
+        PE_r = self.R_PE(self.patches, self.patches)
         
         #forward pass
         print("Going into input_net()")
         x = self.input_net(x)
         print("Going into transformer()")
-        x = self.transformer(x, PE, self.PE_b, mask=self.hparams.mask) # Might need to do something different with mask 
+        x = self.transformer(x, PE, PE_r, mask=self.hparams.mask) # Might need to do something different with mask 
         print("Going into output_net()")
         x=self.output_net(x)
 

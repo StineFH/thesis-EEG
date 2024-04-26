@@ -92,9 +92,9 @@ def runExperiment(
     neptune_logger = pl.loggers.NeptuneLogger(
         api_key = NEPTUNE_API_TOKEN,
         project="stinefh/thesis-EEG", 
-        source_files=["run_transformer.py", 
+        source_files=["run_LogCoshtransformer.py", 
                       "data_utils4.py", 
-                      "TransformerModel.py"]
+                      "LogCoshLossTransformerModel.py"]
         # tags=neptuneTags
         )
     neptune_logger.log_hyperparams({'valSub':subjectIds[valSub]})

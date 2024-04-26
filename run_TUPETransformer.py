@@ -110,7 +110,7 @@ def runExperiment(
         patch_size=patch_size,
         step = step,
         output_dim=targetPts,
-        model_dim=64,
+        model_dim=patch_size*2,
         num_heads = 16,
         num_layers = 3,
         lr=0.001,
@@ -155,8 +155,8 @@ def runExperiment(
 targetPts=96
 beforePts=512
 afterPts=512
-patch_size = 16
-step = 8
+patch_size = 32
+step = 16
 
 sessionIds = ['001', '002'] # .-e. only about half the data in EESM19
 limit = 100000 # Validation dataset size

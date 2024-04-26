@@ -1,6 +1,5 @@
 import matplotlib.pyplot as plt
 import torch
-import data_utils4 as du
 
 
 def abs_prediction_error(abs_pred_error, file_name, only_before):
@@ -75,7 +74,7 @@ def visualizeTargetPrediction(x, y, model, model_path, path, subjectId, sessionI
     pred = model(x) 
     
     if only_before:
-        original  = torch.cat((x[:,-100:], y, ),dim=1)
+        original  = torch.cat((x[:,-100:], y),dim=1)
         
         # Plotting
         colors = plt.cm.Paired([1,5])
@@ -88,7 +87,6 @@ def visualizeTargetPrediction(x, y, model, model_path, path, subjectId, sessionI
                   label='Original', color = colors[0])
         plt.plot(range(100, 100+targetPts), pred[0].detach().numpy(), 
                   label='Prediction', color = colors[1])
-        
         plt.title('Predicted and target EEG')
         plt.xlabel('')
         plt.ylabel('')
@@ -133,12 +131,12 @@ def visualizeTargetPrediction(x, y, model, model_path, path, subjectId, sessionI
 path= 'Y:\\NTdata\\BIDS\\EESM19\\derivatives\\cleaned_1\\'
 subjectId = '001'
 sessionId='001'
-beforePts=512*2
-afterPts=0
+beforePts=512
+afterPts=512
 targetPts=96
-# channelIds=[1,19,23]
+channelIds=[1,19,23]
 # model_path = './linear_model_snapshot/THES-48.pt'
-model_path = './transformer_model_snapshot/THES-51.pt'
+model_path = './transformer_model_snapshot/THES-61.pt'
 
 # from LinearModel import linearModel
 # model = linearModel(lr=0.001,input_size=512+512, output_size=96, 
@@ -146,11 +144,36 @@ model_path = './transformer_model_snapshot/THES-51.pt'
 #                         max_iters=18800) 
 
 # from BasicTransformerModel import Transformer
-# from L1LossTransformerModel import Transformer
-# from BatchNormTransformerModel import BatchNormTransformer
-# from overlappingPatchesTransformer import OverlappingTransformer
-from TUPETransformerModel import TUPEOverlappingTransformer
+# model = Transformer( # MSE LOSS
+#     context_size=beforePts+afterPts, 
+#     context_block=50,
+#     output_dim=targetPts,
+#     model_dim=50,
+#     num_heads = 1,
+#     num_layers = 1,
+#     lr=0.001,
+#     warmup=300,
+#     max_iters=9200,
+#     dropout=0.2,
+#     input_dropout=0.2,
+#     mask = None) 
 
+# from L1LossTransformerModel import Transformer
+# model = Transformer(
+#     context_size=beforePts+afterPts, 
+#     context_block=50,
+#     output_dim=targetPts,
+#     model_dim=50,
+#     num_heads = 1,
+#     num_layers = 1,
+#     lr=0.001,
+#     warmup=620,
+#     max_iters=18800,
+#     dropout=0.2,
+#     input_dropout=0.2,
+#     mask = None)
+
+# from BatchNormTransformerModel import BatchNormTransformer
 # model = BatchNormTransformer(
 #         context_size=500+500, 
 #         context_block=50,
@@ -163,11 +186,13 @@ from TUPETransformerModel import TUPEOverlappingTransformer
 #         max_iters=18800, #18800
 #         dropout=0.2,
 #         input_dropout=0.2,
-#         mask = None) 
+#         mask = None)  
+
+from TUPETransformerModel import TUPEOverlappingTransformer
 model = TUPEOverlappingTransformer(
         context_size=512+512,
-        patch_size=64,
-        step = 32,
+        patch_size=32,
+        step = 16,
         output_dim=96,
         model_dim=64,
         num_heads=16,
@@ -178,8 +203,30 @@ model = TUPEOverlappingTransformer(
         dropout=0.2,
         input_dropout=0.2,
         mask = None,
-        only_before=True) 
+        only_before=False) 
 
+# from overlappingPatchesTransformer import OverlappingTransformer
+# from LogCoshLossTransformerModel import Transformer
+
+import data_utils4 as du
+# import data_utils_channelIndp as du
+# from ChannelIndpTransformerModel import ChiIndTUPEOverlappingTransformer
+
+# model = ChiIndTUPEOverlappingTransformer(
+#     context_size=beforePts+afterPts, 
+#     patch_size=64,
+#     step = 32,
+#     output_dim=targetPts,
+#     model_dim=64,
+#     num_heads = 16,
+#     num_layers = 3,
+#     lr=0.001,
+#     warmup=620,
+#     max_iters=18800,
+#     dropout=0.2,
+#     input_dropout=0.2,
+#     mask = None,
+#     only_before=False) 
 
 ## GET THE DATA 
 def mytransform(raw):
@@ -199,18 +246,18 @@ data_iter = iter(dl_val)
 
 x, y = next(data_iter)
 no += 1
-file_name = './plots/target-pred-THES51-sub001_' + str(no)
+file_name = './plots/target-pred-THES61-sub001_' + str(no)
 visualizeTargetPrediction(x, y, model, model_path, path, subjectId, sessionId,
                           beforePts, afterPts, targetPts,  
                           file_name = file_name,
-                          only_before = True)
+                          only_before = False)
 
 ####################### Plot Absolute Prediction Error ########################
 
-filename = 'THES-51' 
+filename = 'THES-61' 
 # abs_pred_error = torch.load("./lin_model_prediction_error/"  + filename+ '.pt')
 abs_pred_error = torch.load("./transformer_prediction_error/"  + filename + '.pt')
 
 abs_prediction_error(abs_pred_error, 
                      file_name='./plots/avg_abs_pred_error_'+filename+'.png',
-                     only_before=True)
+                     only_before=False)
