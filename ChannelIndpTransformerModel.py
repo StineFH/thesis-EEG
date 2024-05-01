@@ -114,7 +114,7 @@ class TUPEMultiheadAttention(nn.Module):
 
 
 class EncoderBlock(nn.Module):
-    def __init__(self, patch_size, embed_dim, num_heads, dim_ff, dropout=0.0):
+    def __init__(self, no_patches, embed_dim, num_heads, dim_ff, dropout=0.0):
         """
         Args:
             input_dim: Dimensionality of the input
@@ -136,20 +136,24 @@ class EncoderBlock(nn.Module):
                                         )
 
         # Layers to apply in between the main layers
-        self.norm1 = nn.LayerNorm(embed_dim)
-        self.norm2 = nn.LayerNorm(embed_dim)
+        self.batchNorm1 = nn.BatchNorm1d(no_patches) # No of patches
+        self.batchNorm2 = nn.BatchNorm1d(no_patches)
+        # self.norm1 = nn.LayerNorm(embed_dim)
+        # self.norm2 = nn.LayerNorm(embed_dim)
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, x, PE, mask=None):
         # Attention part
         attn_out = self.TUPE_attn(x, PE)
         x = x + self.dropout(attn_out)
-        x = self.norm1(x)
+        # x = self.norm1(x)
+        x = self.batchNorm1(x)
 
         # MLP part
         linear_out = self.linear_net(x)
         x = x + self.dropout(linear_out)
-        x = self.norm2(x)
+        # x = self.norm2(x)
+        x = self.batchNorm2(x)
 
         return x
 
@@ -215,14 +219,14 @@ class ChiIndTUPEOverlappingTransformer(pl.LightningModule):
         dropout=0.0,
         input_dropout=0.0,
         mask = None,
-        only_before = True
+        only_before = False
     ):
         super().__init__()
         self.save_hyperparameters()
         
         assert context_size % patch_size == 0, "context_size must be divisible by context_block"
         
-        self.metric = torch.nn.MSELoss()
+        self.metric = torch.nn.L1Loss()
         
         # Input dim -> Model dim
         self.input_net = nn.Sequential(
@@ -233,10 +237,16 @@ class ChiIndTUPEOverlappingTransformer(pl.LightningModule):
         # Positional encoding for sequences
         self.positional_encoding = PositionalEncoding(d_model=self.hparams.model_dim)
         
+        # Output layer
+        if only_before == True: 
+            n_patches= int(((self.hparams.context_size - self.hparams.patch_size)/self.hparams.step+1))
+        else: 
+            n_patches= int((((self.hparams.context_size/2)-self.hparams.patch_size)/self.hparams.step+1)*2)
+        
         # Transformer
         self.transformer = TransformerEncoder(
             num_layers=self.hparams.num_layers,
-            patch_size=self.hparams.patch_size,
+            no_patches= n_patches,
             embed_dim=self.hparams.model_dim,
             dim_ff=2 * self.hparams.model_dim, 
             num_heads=self.hparams.num_heads,

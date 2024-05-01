@@ -168,3 +168,9 @@ cython_debug/
 
 #plots 
 /plots
+
+#Models etc
+/transformer_model_snapshot
+/transformer_prediction_error 
+/lin_model_prediction_error
+/linear_model_snapshot

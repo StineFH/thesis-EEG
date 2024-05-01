@@ -7,7 +7,7 @@ from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 
 import data_utils4 as du
 
-from overlappingPatchesTransformer import OverlappingTransformer
+from RelativeTUPETransformerModel import RelativeTUPETransformer
 
 pl.seed_everything(42, workers=True)
 
@@ -78,7 +78,7 @@ def runExperiment(
     dl_train=torch.utils.data.DataLoader(ds_train, batch_size=batchSize, 
                                          shuffle=True, num_workers=16)
     
-    print('Loading validation data, subject = ' + subjectIds[valSub])
+    print('Loading validation data, subject = ' + valIds)
     ds_val=du.EEG_dataset_from_paths(valPaths, beforePts=beforePts,afterPts=afterPts,
                                      targetPts=targetPts, channelIdxs=channelIdxs,
                                      preprocess=False,limit=limit_val,transform=mytransform
@@ -94,9 +94,9 @@ def runExperiment(
     neptune_logger = pl.loggers.NeptuneLogger(
         api_key = NEPTUNE_API_TOKEN,
         project="stinefh/thesis-EEG", 
-        source_files=["run_overlappingTransformer.py", 
+        source_files=["run_TUPETransformer.py", 
                       "data_utils4.py", 
-                      "TransformerModel.py"]
+                      "TUPETransformerModel.py"]
         # tags=neptuneTags
         )
     neptune_logger.log_hyperparams({'valSub':subjectIds[valSub]})
@@ -105,12 +105,12 @@ def runExperiment(
     neptune_logger.log_hyperparams({'lr schedular':"CosineWarmup"})
     
     ################## make Model, Earlystop, Trainer and Fit #################
-    transf_model = OverlappingTransformer(
+    transf_model = RelativeTUPETransformer(
         context_size=beforePts+afterPts, 
         patch_size=patch_size,
         step = step,
         output_dim=targetPts,
-        model_dim=64*2,
+        model_dim=patch_size*2,
         num_heads = 16,
         num_layers = 3,
         lr=0.001,
@@ -151,7 +151,6 @@ def runExperiment(
     return trainer, transf_model
 
 ################################ Run Experiment ###############################
-
 targetPts=96
 beforePts=512
 afterPts=512

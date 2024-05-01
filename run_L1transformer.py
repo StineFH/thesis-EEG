@@ -60,10 +60,10 @@ def runExperiment(
         bidsPath = tempPath
         
     subjectIds=mb.get_entity_vals(bidsPath,'subject', with_key=False)
-    trainIds=subjectIds.copy()
-    trainIds.pop(valSub)
+    trainIds=subjectIds.copy()[6:]
+    valIds = subjectIds.copy()[3:6]
     trainPaths=du.returnFilePaths(bidsPath,trainIds,sessionIds=sessionIds) # There is onlyone session in small dataset
-    valPaths=du.returnFilePaths(bidsPath,[subjectIds[valSub]],sessionIds=sessionIds)
+    valPaths=du.returnFilePaths(bidsPath,valIds,sessionIds=sessionIds)
     
     
     print('Loading training data')
@@ -74,15 +74,15 @@ def runExperiment(
                                         transform=mytransform
                                        )
     dl_train=torch.utils.data.DataLoader(ds_train, batch_size=batchSize, 
-                                         shuffle=True, num_workers=8)
+                                         shuffle=True, num_workers=16)
     
     print('Loading validation data, subject = ' + subjectIds[valSub])
     ds_val=du.EEG_dataset_from_paths(valPaths, beforePts=beforePts,afterPts=afterPts,
-                                     targetPts=targetPts, channelIdxs=1,
+                                     targetPts=targetPts, channelIdxs=channelIdxs,
                                      preprocess=False,limit=limit_val,transform=mytransform
                                      )
     dl_val=torch.utils.data.DataLoader(ds_val, batch_size=batchSize,
-                                       num_workers=8)
+                                       num_workers=16)
     
     ######################## Make Neptune Logger ############################
     #https://docs.neptune.ai/api/neptune/#init_run
@@ -92,7 +92,7 @@ def runExperiment(
     neptune_logger = pl.loggers.NeptuneLogger(
         api_key = NEPTUNE_API_TOKEN,
         project="stinefh/thesis-EEG", 
-        source_files=["run_transformer.py", 
+        source_files=["run_L1transformer.py", 
                       "data_utils4.py", 
                       "TransformerModel.py"]
         # tags=neptuneTags
@@ -105,11 +105,11 @@ def runExperiment(
     ################## make Model, Earlystop, Trainer and Fit #################
     transf_model = Transformer(
         context_size=beforePts+afterPts, 
-        context_block=50,
+        context_block=64,
         output_dim=targetPts,
-        model_dim=50,
-        num_heads = 1,
-        num_layers = 1,
+        model_dim=64*2,
+        num_heads = 16,
+        num_layers = 3,
         lr=0.001,
         warmup=warmup,
         max_iters=max_iters,
@@ -120,10 +120,10 @@ def runExperiment(
                                    patience=25, verbose=False, mode="min")
     
     trainer = pl.Trainer(logger=neptune_logger,
-                         accelerator='gpu', devices=1, # Devices = number of gpus 
+                         accelerator='gpu', devices=2, # Devices = number of gpus 
                          callbacks=[early_stopping],
                          max_epochs=max_epochs,
-                         log_every_n_steps=30)
+                         log_every_n_steps=50)
     
     trainer.fit(transf_model, dl_train, dl_val)
     
@@ -149,18 +149,18 @@ def runExperiment(
 
 ################################ Run Experiment ###############################
 
-targetPts=100
-beforePts=500
-afterPts=500
-sessionIds = ['001', '002'] # i-e. only about half the data in EESM19
-limit = 100000 # Validation dataset size
-train_size = 620000 # Train dataset size 
+targetPts=96
+beforePts=512
+afterPts=512
+sessionIds = ['001', '002', '003', '004']
+limit = 1875000 # Validation dataset size
+train_size = 6250000 # Train dataset size 
 batchSize= 10000
 channelIdxs=[1,19,23]
 valSub=0
-max_iters = 18800
+max_iters = 188000
 max_epochs = 300
-warmup = 620
+warmup = 6250
 
 
 trainer,net=runExperiment(batchSize= batchSize,

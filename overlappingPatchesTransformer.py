@@ -145,7 +145,7 @@ class OverlappingTransformer(pl.LightningModule):
         
         assert context_size % patch_size == 0, "context_size must be divisible by context_block"
         
-        self.metric = torch.nn.MSELoss()
+        self.metric = torch.nn.L1Loss()
         
         # Input dim -> Model dim
         self.input_net = nn.Sequential(
@@ -255,73 +255,3 @@ class OverlappingTransformer(pl.LightningModule):
         self.log("val_loss", loss, on_step=False, on_epoch=True, prog_bar=False, logger=True)
     
         return loss
-    ##########################################################
-# train_iter = iter(dl_train)
-# x, y = next(train_iter)
-# inputs = x.copy()
-# context_size = 1000
-# patch_size = 8
-# step = 4
-# model_dim = 50
-# transf = OverlappingTransformer(context_size=context_size,
-#                         patch_size=patch_size,
-#                         step = 4,
-#                         output_dim=100,
-#                         model_dim=model_dim,
-#                         num_heads = 1,
-#                         num_layers = 1,
-#                         lr=0.001,
-#                         warmup=1,
-#                         max_iters=201,
-#                         dropout=0.2,
-#                         input_dropout=0.2,
-#                         mask = None)
-
-# transf(inputs)
-
-# input_net = nn.Sequential(
-#     nn.Dropout(0.2),
-#     nn.Linear(patch_size, model_dim)
-# )
-# positional_encoding = PositionalEncoding(d_model=model_dim)
-
-# transformer = TransformerEncoder(
-#     num_layers=1,
-#     input_dim=model_dim,
-#     dim_ff=2 * model_dim, 
-#     num_heads=16,
-#     dropout=0.2,
-# )
-
-# transFormerOutSize= int((((context_size/2)-patch_size)/step+1)*2*model_dim)
-
-
-# output_net = nn.Sequential(
-#     nn.Flatten(),
-#     nn.Dropout(0.2),
-#     nn.Linear(transFormerOutSize,100),
-#     nn.ReLU(),
-#     nn.Linear(100,100),
-#     nn.ReLU(),
-#     nn.Linear(100,100)
-#     )
-
-# x1, x2 = inputs
-
-# x1 = x1.unfold(dimension = 1, size = patch_size, step = step) # batch_size x no. patches x stride
-# x2 = x2.unfold(dimension = 1, size = patch_size, step = step) # batch_size x no. patches x stride
-# x=torch.cat((x1,x2),dim=1) # shape [1, 124, 8] [batch_size x no. patches x patch_size]
-
-
-#forward pass
-# x = input_net(x)
-# x = positional_encoding(x) # same as above [1, 20, 50]
-
-# x = transformer(x, mask=None) #same as above[1, 20, 50]
-
-# flattenOutSize= int((((context_size/2)-patch_size)/step+1)*2*model_dim)
-
-# x= output_net(x)
-
-# m = nn.Flatten()
-# test= m(x) # [1, 1000]

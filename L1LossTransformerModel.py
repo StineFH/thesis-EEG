@@ -159,7 +159,7 @@ class Transformer(pl.LightningModule):
         self.transformer = TransformerEncoder(
             num_layers=self.hparams.num_layers,
             input_dim=self.hparams.model_dim,
-            dim_ff=2 * self.hparams.model_dim, # Change this *2? 
+            dim_ff=2 * self.hparams.model_dim, 
             num_heads=self.hparams.num_heads,
             dropout=self.hparams.dropout,
         )

@@ -291,7 +291,7 @@ class RelativeTUPETransformer(pl.LightningModule):
         
         assert context_size % patch_size == 0, "context_size must be divisible by context_block"
         
-        self.metric = torch.nn.MSELoss()
+        self.metric = torch.nn.L1Loss()
         
         # Input dim -> Model dim
         self.input_net = nn.Sequential(

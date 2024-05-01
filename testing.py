@@ -29,8 +29,8 @@ targetPts=96
 
 bidsPath= 'Y:\\NTdata\\BIDS\\EESM17\\'
 subjectIds=mb.get_entity_vals(bidsPath,'subject', with_key=False)
-trainIds=subjectIds.copy()
-trainIds.pop(valSub)
+
+trainIds=subjectIds.copy()[3:]
 
 for _ in range(6): # Remove some files 
     trainIds.pop(0)
@@ -94,6 +94,8 @@ inputs, y = next(val_iter)
 # AVG abs error Relu: Avg L1:  16.37
 # AVG abs error GELU: Avg L1:  18.14
 # trainer = pl.Trainer(devices="auto",accelerator="auto")
+
+int((((1024/2)-64)/32+1)*2)
 
 ################################## TUPE Relative ####################################
 import math
@@ -160,7 +162,17 @@ attention = nn.functional.softmax(PE_attn + word_attn + PE_r, dim=-1)
 ############################## ALIBI #####################################
 from ALiBiTUPETransformerModel import ALiBiTransformer
 
+cols = torch.arange(no_patches, dtype=torch.long)[:, None]
+rows = torch.arange(no_patches, dtype=torch.long)[None, :]
+relative_position = rows - cols 
 
+RP_heads = relative_position[None,:,:].expand(n_heads, -1, -1)
+ratio = 8/n_heads
+scalars = torch.tensor([1/2**i for i in np.arange(ratio, 8+ratio, ratio)], dtype=torch.float32)
+
+RP_heads = scalars[:, None, None] * RP_heads
+
+PE_r = PE_r[None,:, :,:].expand(batch_size,-1, -1, -1)
 
 trans_model = ALiBiTransformer(
     context_size=512+512, 
@@ -176,11 +188,21 @@ trans_model = ALiBiTransformer(
     dropout=0.2,
     input_dropout=0.2,
     mask = None,
-    TUPE=False)
+    TUPE=True)
 
+train_iter = iter(dl_train)
+inputs, y = next(train_iter)
 trans_model(inputs)
 
+batch = next(train_iter)
+trans_model.configure_optimizers()
+trans_model.training_step(batch, 1)
 
+trans_model.validation_step(batch,1)
+
+trans_model.transformer.layers[0].TUPE_attn.UqUk_proj.weight.shape
+
+######
 from RelativeTUPETransformerModel import RelativeTUPETransformer
 
 trans_model=RelativeTUPETransformer(
@@ -198,7 +220,15 @@ trans_model=RelativeTUPETransformer(
     input_dropout=0.2,
     mask = None)
 
+inputs, y = next(train_iter)
+
 trans_model(inputs)
+
+batch = next(train_iter)
+
+trans_model.configure_optimizers()
+trans_model.training_step(batch, 1)
+trans_model.validation_step(batch,1)
 
 ########################## CHANNEL INDEPENDENCE ##############################
 def mytransform(raw):
@@ -221,18 +251,21 @@ subjectIds=mb.get_entity_vals(bidsPath,'subject', with_key=False)
 trainIds=subjectIds.copy()
 trainIds.pop(valSub)
 
-for _ in range(17): # Remove some files 
+for _ in range(18): # Remove some files 
     trainIds.pop(0)
 
-trainPaths=du.returnFilePaths(bidsPath,trainIds,sessionIds=['001']) # There is onlyone session in small dataset
-valPaths=du.returnFilePaths(bidsPath,[subjectIds[valSub]],sessionIds=['001'])
+import data_utils_channelIndp as duCH
+
+trainPaths=duCH.returnFilePaths(bidsPath,trainIds,sessionIds=['001']) # There is onlyone session in small dataset
+valPaths=duCH.returnFilePaths(bidsPath,[subjectIds[valSub]],sessionIds=['001'])
 
 print('Loading training data')
-ds_train_CHI =du.EEG_dataset_from_paths(trainPaths, beforePts=beforePts,
+ds_train_CHI =duCH.EEG_dataset_from_paths(trainPaths, beforePts=beforePts,
                                    afterPts=afterPts,targetPts=targetPts, 
                                    channelIdxs=channelIdxs,preprocess=False,
                                     limit=None,train_size = 100000,
-                                   transform=mytransform)
+                                   transform=None
+                                   )
 dl_train=torch.utils.data.DataLoader(ds_train_CHI, batch_size=batchSize, shuffle=True)
 
 print('Loading validation data, subject = ' + subjectIds[valSub])
@@ -242,24 +275,27 @@ ds_val_CHI = du.EEG_dataset_from_paths(valPaths, beforePts=beforePts,afterPts=af
                                  transform=mytransform)
 dl_val=torch.utils.data.DataLoader(ds_val_CHI, batch_size=batchSize)
 
-val_iter = iter(dl_val)
-inputs, y = next(val_iter)
+train_iter = iter(dl_train)
+inputs, y = next(train_iter)
 
 x1, x2 = inputs
 
-x = x1.unfold(dimension = 1, size = 32,
-              step = 16) #31 wtih length 32
-x.shape
-from TUPETransformerModel import TUPEOverlappingTransformer
+x1 = x1.unfold(dimension = 2, size = 64, 
+             step = 32)
+x2 = x2.unfold(dimension = 2, size = 64, 
+             step = 32)
+x=torch.cat((x1,x2),dim=2)
+from ChannelIndpTransformerModel import ChiIndTUPEOverlappingTransformer,TUPEMultiheadAttention
 
-transf_model = TUPEOverlappingTransformer(
+
+transf_model = ChiIndTUPEOverlappingTransformer(
     context_size=512+512, 
-    patch_size=32,
-    step = 16,
+    patch_size=64,
+    step = 32,
     output_dim=96,
-    model_dim=32,
-    num_heads = 16,
-    num_layers = 3,
+    model_dim=64,
+    num_heads = 1,
+    num_layers = 1,
     lr=0.001,
     warmup=1,
     max_iters=100,
@@ -279,7 +315,12 @@ trainer = pl.Trainer(#logger=neptune_logger,
 
 trainer.fit(transf_model, dl_train, dl_val)
 
+batch = next(train_iter)
 transf_model(inputs)
+
+transf_model.configure_optimizers()
+transf_model.training_step(batch, 1)
+
 
 # q size torch.Size([10000, 16, 62, 2])
 # size of PE_attn:  torch.Size([10000, 16, 62, 62]) #Batch_size x  

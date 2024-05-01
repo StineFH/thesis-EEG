@@ -136,12 +136,12 @@ afterPts=512
 targetPts=96
 channelIds=[1,19,23]
 # model_path = './linear_model_snapshot/THES-48.pt'
-model_path = './transformer_model_snapshot/THES-61.pt'
+model_path = './transformer_model_snapshot/THES-66.pt'
 
-# from LinearModel import linearModel
-# model = linearModel(lr=0.001,input_size=512+512, output_size=96, 
-#                         warmup=620,
-#                         max_iters=18800) 
+from LinearModel import linearModel
+model = linearModel(lr=0.001,input_size=512+512, output_size=96, 
+                        warmup=620,
+                        max_iters=18800) 
 
 # from BasicTransformerModel import Transformer
 # model = Transformer( # MSE LOSS
@@ -188,25 +188,41 @@ model_path = './transformer_model_snapshot/THES-61.pt'
 #         input_dropout=0.2,
 #         mask = None)  
 
-from TUPETransformerModel import TUPEOverlappingTransformer
-model = TUPEOverlappingTransformer(
-        context_size=512+512,
-        patch_size=32,
-        step = 16,
-        output_dim=96,
-        model_dim=64,
-        num_heads=16,
-        num_layers=3,
-        lr=0.001,
-        warmup=620, #620
-        max_iters=18800, #18800
-        dropout=0.2,
-        input_dropout=0.2,
-        mask = None,
-        only_before=False) 
+# from TUPETransformerModel import TUPEOverlappingTransformer
+# model = TUPEOverlappingTransformer(
+#         context_size=512+512,
+#         patch_size=32,
+#         step = 16,
+#         output_dim=96,
+#         model_dim=64,
+#         num_heads=16,
+#         num_layers=3,
+#         lr=0.001,
+#         warmup=620, #620
+#         max_iters=18800, #18800
+#         dropout=0.2,
+#         input_dropout=0.2,
+#         mask = None,
+#         only_before=False) 
 
 # from overlappingPatchesTransformer import OverlappingTransformer
 # from LogCoshLossTransformerModel import Transformer
+
+# from RelativeTUPETransformerModel import RelativeTUPETransformer
+# model = RelativeTUPETransformer(
+#     context_size=beforePts+afterPts, 
+#     patch_size=64,
+#     step = 32,
+#     output_dim=targetPts,
+#     model_dim=64*2,
+#     num_heads = 16,
+#     num_layers = 3,
+#     lr=0.001,
+#     warmup=620,
+#     max_iters=18800,
+#     dropout=0.2,
+#     input_dropout=0.2,
+#     mask = None) 
 
 import data_utils4 as du
 # import data_utils_channelIndp as du
@@ -228,6 +244,23 @@ import data_utils4 as du
 #     mask = None,
 #     only_before=False) 
 
+# from ALiBiTUPETransformerModel import ALiBiTransformer
+# model = ALiBiTransformer(
+#     context_size=beforePts+afterPts, 
+#     patch_size=64,
+#     step = 32,
+#     output_dim=targetPts,
+#     model_dim=64*2,
+#     num_heads = 16,
+#     num_layers = 3,
+#     lr=0.001,
+#     warmup=620,
+#     max_iters=18800,
+#     dropout=0.2,
+#     input_dropout=0.2,
+#     mask = None,
+#     TUPE = False) 
+
 ## GET THE DATA 
 def mytransform(raw):
     raw.filter(0.1, 40)
@@ -246,18 +279,30 @@ data_iter = iter(dl_val)
 
 x, y = next(data_iter)
 no += 1
-file_name = './plots/target-pred-THES61-sub001_' + str(no)
+file_name = './plots/target-pred-THES66-sub001_' + str(no)
 visualizeTargetPrediction(x, y, model, model_path, path, subjectId, sessionId,
                           beforePts, afterPts, targetPts,  
                           file_name = file_name,
                           only_before = False)
 
+
 ####################### Plot Absolute Prediction Error ########################
 
-filename = 'THES-61' 
-# abs_pred_error = torch.load("./lin_model_prediction_error/"  + filename+ '.pt')
-abs_pred_error = torch.load("./transformer_prediction_error/"  + filename + '.pt')
+filename = 'THES-75' 
+abs_pred_error = torch.load("./lin_model_prediction_error/"  + filename + '.pt')
+# abs_pred_error = torch.load("./transformer_prediction_error/"  + filename + '.pt')
 
 abs_prediction_error(abs_pred_error, 
                      file_name='./plots/avg_abs_pred_error_'+filename+'.png',
                      only_before=False)
+
+
+"""
+Validation errors: 
+    Vanilla Transformer:
+        Avg L1:  tensor(6.4576)
+        Avg MSE:  tensor(80.8829)
+    Linear: 
+        Avg L1:  tensor(6.4724)
+        Avg MSE:  tensor(84.5998)
+"""

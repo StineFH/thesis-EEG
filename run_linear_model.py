@@ -60,10 +60,10 @@ def runExperiment(
         bidsPath = tempPath
         
     subjectIds=mb.get_entity_vals(bidsPath,'subject', with_key=False)
-    trainIds=subjectIds.copy()
-    trainIds.pop(valSub)
+    trainIds=subjectIds.copy()[6:]
+    valIds = subjectIds.copy()[3:6]
     trainPaths=du.returnFilePaths(bidsPath,trainIds,sessionIds=sessionIds) # There is onlyone session in small dataset
-    valPaths=du.returnFilePaths(bidsPath,[subjectIds[valSub]],sessionIds=sessionIds)
+    valPaths=du.returnFilePaths(bidsPath,valIds,sessionIds=sessionIds)
     
     
     print('Loading training data')
@@ -74,15 +74,15 @@ def runExperiment(
                                         transform=mytransform
                                        )
     dl_train=torch.utils.data.DataLoader(ds_train, batch_size=batchSize, 
-                                         shuffle=True, num_workers=8)
+                                         shuffle=True, num_workers=16)
     
-    print('Loading validation data, subject = ' + subjectIds[valSub])
+    print('Loading validation data, subject = ' + str(valIds))
     ds_val=du.EEG_dataset_from_paths(valPaths, beforePts=beforePts,afterPts=afterPts,
-                                     targetPts=targetPts, channelIdxs=1,
+                                     targetPts=targetPts, channelIdxs=channelIdxs,
                                      preprocess=False,limit=limit_val,transform=mytransform
                                      )
     dl_val=torch.utils.data.DataLoader(ds_val, batch_size=batchSize,
-                                       num_workers=8)
+                                       num_workers=16)
     
     ######################## Make Neptune Logger ############################
     #https://docs.neptune.ai/api/neptune/#init_run
@@ -103,16 +103,19 @@ def runExperiment(
     neptune_logger.log_hyperparams({'lr schedular':"CosineWarmup"})
     
     ################## make Model, Earlystop, Trainer and Fit #################
-    lin_model = linearModel(0.001,beforePts+afterPts, targetPts, warmup=warmup, 
+    lin_model = linearModel(0.001,
+                            beforePts+afterPts, 
+                            targetPts, 
+                            warmup=warmup, 
                             max_iters=max_iters) 
     early_stopping = EarlyStopping(monitor="val_loss", min_delta=0.00,
                                    patience=25, verbose=False, mode="min")
     
     trainer = pl.Trainer(logger=neptune_logger,
-                         accelerator='gpu', devices=1, # Devices = number of gpus 
+                         accelerator='gpu', devices=2, # Devices = number of gpus 
                          callbacks=[early_stopping],
                          max_epochs=max_epochs,
-                         log_every_n_steps=10)
+                         log_every_n_steps=50)
     
     trainer.fit(lin_model, dl_train, dl_val)
     
@@ -142,15 +145,15 @@ targetPts=96
 beforePts=512
 afterPts=512
 
-sessionIds = ['001', '002'] # i.e. only half the data in EESM19
-limit = 100000 # validation dataset size
-train_size = 620000 # train dataset size 
+sessionIds = ['001', '002', '003', '004'] 
+limit = 1875000 # validation dataset size
+train_size = 6250000 # train dataset size 
 batchSize= 10000
 channelIdxs=[1,19,23]
 valSub=0
-max_iters = 18800
+max_iters = 188000
 max_epochs = 300
-warmup = 620
+warmup = 6250
 
 
 trainer,net=runExperiment(batchSize= batchSize,

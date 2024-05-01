@@ -39,7 +39,7 @@ def tupe_product(q, k):
     return attn / math.sqrt(2*d)
 
 class TUPEMultiheadAttention(nn.Module):
-    def __init__(self, input_dim, embed_dim, num_heads, TUPE =False):
+    def __init__(self, input_dim, embed_dim, num_heads, TUPE=False):
         """
         Input: 
             input_dim: Dimensionality of input 
@@ -135,7 +135,7 @@ class TUPEMultiheadAttention(nn.Module):
 
 
 class EncoderBlock(nn.Module):
-    def __init__(self, patch_size, embed_dim, num_heads, dim_ff, dropout=0.0, TUPE=False):
+    def __init__(self, patch_size, embed_dim, num_heads, dim_ff, dropout=0.0, TUPE_=False):
         """
         Args:
             input_dim: Dimensionality of the input
@@ -149,7 +149,7 @@ class EncoderBlock(nn.Module):
         self.TUPE_attn = TUPEMultiheadAttention(input_dim=embed_dim,
                                                 embed_dim=embed_dim,
                                                 num_heads=num_heads,
-                                                TUPE =TUPE)
+                                                TUPE =TUPE_)
 
         # Two-layer MLP
         self.linear_net = nn.Sequential(nn.Linear(embed_dim, dim_ff),
@@ -209,9 +209,12 @@ class ALiBi(nn.Module):
         ratio = 8/self.n_heads
         scalars = torch.tensor([1/2**i for i in np.arange(ratio, 8+ratio, ratio)], dtype=torch.float32)
         
-        self.RP_heads = scalars[:, None, None] * RP_heads
+        RP_heads = scalars[:, None, None] * RP_heads
+        
+        self.register_buffer("PE_r", RP_heads, persistent=False)
+        
     def forward(self, batch_size):
-        return self.RP_heads[None,:, :,:].expand(batch_size,-1, -1, -1)
+        return self.PE_r[None,:, :,:].expand(batch_size,-1, -1, -1)
 
 class PositionalEncoding(nn.Module):
     def __init__(self, d_model, max_len=5000):
@@ -263,7 +266,7 @@ class ALiBiTransformer(pl.LightningModule):
         
         assert context_size % patch_size == 0, "context_size must be divisible by context_block"
         
-        self.metric = torch.nn.MSELoss()
+        self.metric = torch.nn.L1Loss()
         
         # Input dim -> Model dim
         self.input_net = nn.Sequential(
@@ -286,6 +289,7 @@ class ALiBiTransformer(pl.LightningModule):
             dim_ff=2 * self.hparams.model_dim, 
             num_heads=self.hparams.num_heads,
             dropout=self.hparams.dropout,
+            TUPE_=self.hparams.TUPE
         )
         
         # Output layer
@@ -346,16 +350,12 @@ class ALiBiTransformer(pl.LightningModule):
             PE = self.positional_encoding(x)
         batch_size, _, _ = x.shape
         PE_ALiBi = self.ALiBi(batch_size)
-        print("ALIBI SHAPE", PE_ALiBi.shape)
         #forward pass
-        print("Going into input_net()")
         x = self.input_net(x)
-        print("Going into transformer()")
         if self.hparams.TUPE:
             x = self.transformer(x, PE_ALiBi, PE, mask=self.hparams.mask) # Might need to do something different with mask 
         else: 
             x = self.transformer(x, PE_ALiBi, PE=None, mask=self.hparams.mask)
-        print("Going into output_net()")
         x=self.output_net(x)
 
         return x
@@ -369,9 +369,12 @@ class ALiBiTransformer(pl.LightningModule):
         assert x2.shape[1]%self.hparams.patch_size==0, print("x2 has wrong shape", x2.shape,self.hparams.patch_size)
         assert y.shape[1]==self.hparams.output_dim, print("y has wrong shape", y.shape,self.hparams.output_dim)
         
+        print("Into forward")
         pred = self.forward(x)
+        print("Getting loss")
         loss = F.mse_loss(pred, y)
         
+        print("logging")
         self.log("train_loss", loss, on_step=True, on_epoch=True, prog_bar=False, logger=True)
         self.log("lr", self.lr_scheduler.get_last_lr()[0], on_step=True, on_epoch=True, prog_bar=False, logger=True)
         
