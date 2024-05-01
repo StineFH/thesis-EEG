@@ -167,7 +167,6 @@ max_iters = 188000
 max_epochs = 300
 warmup = 6250
 
-
 trainer,net=runExperiment(batchSize= batchSize,
                           channelIdxs=channelIdxs,
                           valSub=valSub, 

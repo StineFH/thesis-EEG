@@ -121,9 +121,7 @@ def visualizeTargetPrediction(x, y, model, file_name, only_before):
 
 ############################### Import test data ##############################
 
-def getData(testSize, path, 
-            beforePts, afterPts, targetPts, channelIds, sessionIds,
-            CH = False):
+def getData(testSize, path, beforePts, afterPts, targetPts, channelIds, sessionIds):
     def mytransform(raw):
         raw.filter(0.1, 40)
         raw._data=raw._data*1e6
@@ -131,38 +129,23 @@ def getData(testSize, path,
     
     subjectIds=mb.get_entity_vals(path,'subject', with_key=False)
     testIds=subjectIds.copy()[:3]
-    
-    if CH: 
-        subPath = CHdu.returnFilePaths(path, testIds, sessionIds=sessionIds)
-        ds_test = CHdu.EEG_dataset_from_paths(subPath, 
-                                            beforePts=beforePts,afterPts=afterPts, 
-                                            targetPts=targetPts, channelIdxs=channelIds,
-                                            preprocess=False,limit=testSize,
-                                            transform=mytransform
-                                            )
-        dl_test = torch.utils.data.DataLoader(ds_test, batch_size=10000, shuffle=False,
-                                              num_workers = 8)
-    else: 
-        subPath = du.returnFilePaths(path, testIds, sessionIds=sessionIds)
-        ds_test = du.EEG_dataset_from_paths(subPath, 
-                                            beforePts=beforePts,afterPts=afterPts, 
-                                            targetPts=targetPts, channelIdxs=channelIds,
-                                            preprocess=False,limit=testSize,
-                                            transform=mytransform
-                                            )
-        dl_test = torch.utils.data.DataLoader(ds_test, batch_size=10000, shuffle=False,
-                                              num_workers = 8)
+    subPath = du.returnFilePaths(path, testIds, sessionIds=sessionIds)
+    ds_test = du.EEG_dataset_from_paths(subPath, 
+                                        beforePts=beforePts,afterPts=afterPts, 
+                                        targetPts=targetPts, channelIdxs=channelIds,
+                                        preprocess=False,limit=testSize,
+                                        transform=mytransform
+                                        )
+    dl_test = torch.utils.data.DataLoader(ds_test, batch_size=10000, shuffle=False,
+                                          num_workers = 8)
     return ds_test, dl_test
 # Import data channel independent 
 
 ############################### Get MSE and MAE ###############################
 
 
-def getTestResults(models_to_run, neptune_names, ds_test, dl_test,
-                   CH_ds_test, CH_dl_test):
+def getTestResults(models_to_run, neptune_names, ds_test, dl_test):
     dl_test_one = torch.utils.data.DataLoader(ds_test, batch_size=1, 
-                                              shuffle=False, num_workers = 8)
-    CH_dl_test_one = torch.utils.data.DataLoader(CH_ds_test, batch_size=1, 
                                               shuffle=False, num_workers = 8)
     MAE_MSE = {}
     for m, n in zip(models_to_run, neptune_names):
@@ -250,7 +233,7 @@ def getTestResults(models_to_run, neptune_names, ds_test, dl_test,
             model = TUPEOverlappingTransformer(
                 context_size=beforePts+afterPts, 
                 patch_size=64,
-                step = 64,
+                step = 32,
                 output_dim=targetPts,
                 model_dim=64*2,
                 num_heads = 16,
@@ -267,7 +250,7 @@ def getTestResults(models_to_run, neptune_names, ds_test, dl_test,
             model = ALiBiTransformer(
                 context_size=beforePts+afterPts, 
                 patch_size=64,
-                step = 64,
+                step = 32,
                 output_dim=targetPts,
                 model_dim=64*2,
                 num_heads = 16,
@@ -284,7 +267,7 @@ def getTestResults(models_to_run, neptune_names, ds_test, dl_test,
             model = RelativeTUPETransformer(
                 context_size=beforePts+afterPts, 
                 patch_size=64,
-                step = 64,
+                step = 32,
                 output_dim=targetPts,
                 model_dim=64*2,
                 num_heads = 16,
@@ -300,7 +283,7 @@ def getTestResults(models_to_run, neptune_names, ds_test, dl_test,
             model = ALiBiTransformer(
                 context_size=beforePts+afterPts, 
                 patch_size=64,
-                step = 64,
+                step = 32,
                 output_dim=targetPts,
                 model_dim=64*2,
                 num_heads = 16,
@@ -312,102 +295,46 @@ def getTestResults(models_to_run, neptune_names, ds_test, dl_test,
                 input_dropout=0.2,
                 mask = None,
                 TUPE = False) 
-        elif m == 'CH-Indp':
-            from ChannelIndpTransformerModel import ChiIndTUPEOverlappingTransformer
-            model = ChiIndTUPEOverlappingTransformer(
-                context_size=beforePts+afterPts, 
-                patch_size=64,
-                step = 64,
-                output_dim=targetPts,
-                model_dim=64*2,
-                num_heads = 16,
-                num_layers = 3,
-                lr=0.001,
-                warmup=warmup,
-                max_iters=max_iters,
-                dropout=0.2,
-                input_dropout=0.2,
-                mask = None,
-                only_before=False)
         
         
         model.load_state_dict(torch.load(model_path + n + '.pt'))
+        pred_error = []
+        iter_dl_test = iter(dl_test)
+        for i in range(int(testSize/10000)):
+            if i % 10 == 0: print("Calculating Prediction Error for Batch no: ", i)
+            x, y = next(iter_dl_test)
+            pred = model(x) 
+            pred_er = abs(pred-y)
+            pred_error.append(pred_er.detach()) # Add mean predicion over samples 
         
-        if m == 'CH-Indp':
-            pred_error = []
-            iter_dl_test = iter(CH_dl_test)
-            for i in range(int(testSize/10000)):
-                if i % 10 == 0: print("Calculating Prediction Error for Batch no: ", i)
-                x, y = next(iter_dl_test)
-                pred = model(x) 
-                B, C, NP = y.shape
-                y = y.reshape(B*C, NP)
-                pred_er = abs(pred-y)
-                pred_error.append(pred_er.detach()) # Add mean predicion over samples 
-            
-            abs_pred_error = torch.cat(list(map(torch.tensor, pred_error)), dim=0)
-            torch.save(abs_pred_error, './transformer_prediction_error/' + n + '.pt')
-            
-            MSE = torch.mean(torch.mean(torch.square(abs_pred_error), dim=0)) # Overall 
-            MAE = torch.mean(abs_pred_error, dim=0)
-            print("THIS IS m", m)
-            out = abs_prediction_error(MAE, MSE, 'plot_destination' + n, 
-                                       only_before = False)
-            print(out)
-            MAE_MSE[m] = out
-            print("MAE and MSE: ", MAE_MSE[m])
-            # Also different for channel indp. 
-            
-            ####################### Visualize Prediction + original #######################
-            # Could include a picture that 
-            
-            print("Now making plots for prediction")
-            no = -1
-            data_iter = iter(CH_dl_test_one)
-            for i in range(5):
-                x, y = next(data_iter)
-                no += 1
-                file_name = plot_destination +'target-pred-' + n + str(no)
-                visualizeTargetPrediction(x, y, model, file_name, only_before=False)
-
-        else: 
-            pred_error = []
-            iter_dl_test = iter(dl_test)
-            for i in range(int(testSize/10000)):
-                if i % 10 == 0: print("Calculating Prediction Error for Batch no: ", i)
-                x, y = next(iter_dl_test)
-                pred = model(x) 
-                pred_er = abs(pred-y)
-                pred_error.append(pred_er.detach()) # Add mean predicion over samples 
-            
-            abs_pred_error = torch.cat(list(map(torch.tensor, pred_error)), dim=0)
-            torch.save(abs_pred_error, './transformer_prediction_error/' + n + '.pt')
-            
-            MSE = torch.mean(torch.mean(torch.square(abs_pred_error), dim=0)) # Overall 
-            MAE = torch.mean(abs_pred_error, dim=0)
-            print("THIS IS m", m)
-            out = abs_prediction_error(MAE, MSE, 'plot_destination' + n, 
-                                       only_before = False)
-            print(out)
-            MAE_MSE[m] = out
-            print("MAE and MSE: ", MAE_MSE[m])
-            # Also different for channel indp. 
-            
-            ####################### Visualize Prediction + original #######################
-            # Could include a picture that 
-            
-            print("Now making plots for prediction")
-            no = -1
-            data_iter = iter(dl_test_one)
-            for i in range(5):
-                x, y = next(data_iter)
-                no += 1
-                file_name = plot_destination +'target-pred-' + n + str(no)
-                visualizeTargetPrediction(x, y, model, file_name, only_before=False)
+        abs_pred_error = torch.cat(list(map(torch.tensor, pred_error)), dim=0)
+        torch.save(abs_pred_error, './transformer_prediction_error/' + n + '.pt')
         
+        MSE = torch.mean(torch.mean(torch.square(abs_pred_error), dim=0)) # Overall 
+        MAE = torch.mean(abs_pred_error, dim=0)
+        print("THIS IS m", m)
+        out = abs_prediction_error(MAE, MSE, 'plot_destination' + n, 
+                                   only_before = False)
+        print(out)
+        MAE_MSE[m] = out
+        print("MAE and MSE: ", MAE_MSE[m])
+        # Also different for channel indp. 
+        
+        ####################### Visualize Prediction + original #######################
+        # Could include a picture that 
+        
+        print("Now making plots for prediction")
+        no = -1
+        data_iter = iter(dl_test_one)
+        for i in range(5):
+            x, y = next(data_iter)
+            no += 1
+            file_name = plot_destination +'target-pred-' + n + str(no)
+            visualizeTargetPrediction(x, y, model, file_name, only_before=False)
     
-        with open('./test_plots/MAE_MSE.json', 'w') as fp:
-            json.dump(MAE_MSE, fp)
+
+    with open('./test_plots/MAE_MSE.json', 'w') as fp:
+        json.dump(MAE_MSE, fp)
         
 
 if __name__ == '__main__':
@@ -422,33 +349,29 @@ if __name__ == '__main__':
     
     ds_test, dl_test = getData(testSize, path, beforePts, afterPts, targetPts, 
                       channelIds, sessionIds)
-    
-    CH_ds_test, CH_dl_test = getData(testSize, path, beforePts, afterPts, targetPts, 
-                      channelIds, sessionIds)
-    models_to_run = ['CH-Indp',
-                     'linear_model', 
-                     'vanilla',
+    models_to_run = [#'linear_model', 
+                     #'vanilla',
                      'L1',
-                     'LogCosh',
+                     #'LogCosh',
                      'overlapping',
                      'TUPE-A',
                      'TUPE-ALiBi',
                      'TUPE-R',
-                     'ALiBi'
+                     'ALiBi',
+                     #'CH-Indp'
                      ]
-    neptune_names = ['THES-83',
-                     'THES-71', 
-                     'THES-70',
+    neptune_names = [#'THES-71', 
+                     #'THES-70',
                      'THES-72',
-                     'THES-73',
+                     #'THES-73',
                      'THES-74',
                      'THES-75',
                      'THES-76',
                      'THES-77',
-                     'THES-78'
+                     'THES-78',
+                     #'THES-83'
                      ]
-    getTestResults(models_to_run, neptune_names, ds_test, dl_test,
-                   CH_ds_test, CH_dl_test)
+    getTestResults(models_to_run, neptune_names, ds_test, dl_test)
 
 """Test results
     ##

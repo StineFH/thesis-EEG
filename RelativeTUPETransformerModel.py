@@ -375,11 +375,8 @@ class RelativeTUPETransformer(pl.LightningModule):
         PE_r = self.R_PE(self.patches, self.patches)
         
         #forward pass
-        print("Going into input_net()")
         x = self.input_net(x)
-        print("Going into transformer()")
         x = self.transformer(x, PE, PE_r, mask=self.hparams.mask) # Might need to do something different with mask 
-        print("Going into output_net()")
         x=self.output_net(x)
 
         return x

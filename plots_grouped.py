@@ -1,10 +1,8 @@
 import matplotlib.pyplot as plt
 import torch
 import data_utils4 as du
-# import data_utils_channelIndp as CHdu
+import data_utils_channelIndp as CHdu
 import mne_bids as mb
-# import json
-# During test_data_results.py save the pred_error over dist 
 
 def get_model(m, n, beforePts, afterPts, targetPts):
     if m == "linear_model":
@@ -156,11 +154,38 @@ def get_model(m, n, beforePts, afterPts, targetPts):
     model.load_state_dict(torch.load(model_path + n + '.pt'))
     return model
 
-save = 'Final_plots_MAE'
-filenames = ['THES-75',
-             'THES-76']
-labels = ['L1',
-          'TUPE']
+def getData(testSize, path, 
+            beforePts, afterPts, targetPts, channelIds, sessionIds,
+            CH = False):
+    def mytransform(raw):
+        raw.filter(0.1, 40)
+        raw._data=raw._data*1e6
+        return raw
+    
+    subjectIds=mb.get_entity_vals(path,'subject', with_key=False)
+    testIds=subjectIds.copy()[:3]
+    
+    if CH: 
+        subPath = CHdu.returnFilePaths(path, testIds, sessionIds=sessionIds)
+        ds_test = CHdu.EEG_dataset_from_paths(subPath, 
+                                            beforePts=beforePts,afterPts=afterPts, 
+                                            targetPts=targetPts, channelIdxs=channelIds,
+                                            preprocess=False,limit=20,
+                                            transform=mytransform
+                                            )
+        dl_test = torch.utils.data.DataLoader(ds_test, batch_size=1, shuffle=False,
+                                              num_workers = 8)
+    else: 
+        subPath = du.returnFilePaths(path, testIds, sessionIds=sessionIds)
+        ds_test = du.EEG_dataset_from_paths(subPath, 
+                                            beforePts=beforePts,afterPts=afterPts, 
+                                            targetPts=targetPts, channelIdxs=channelIds,
+                                            preprocess=False,limit=20,
+                                            transform=mytransform
+                                            )
+        dl_test = torch.utils.data.DataLoader(ds_test, batch_size=1, shuffle=False,
+                                              num_workers = 8)
+    return dl_test
 
 def MAE_grouped_plot(filenames, labels, save):
     colors = plt.cm.tab10([1,len(filenames)])
@@ -180,65 +205,88 @@ def MAE_grouped_plot(filenames, labels, save):
     if save:
         plt.savefig(save)
     plt.show()
+
+def create_prediction_plots(file_name, models, n):
+
+    beforePts = 512
+    afterPts = 512
+    targetPts = 96
     
+    data_iter = iter(dl_test_one)
     
-def getData(testSize, path,
-            beforePts, afterPts, targetPts, channelIds, sessionIds):
-    def mytransform(raw):
-        raw.filter(0.1, 40)
-        raw._data=raw._data*1e6
-        return raw
-    
-    subjectIds=mb.get_entity_vals(path,'subject', with_key=False)
-    testIds=subjectIds.copy()[:3]
-    subPath = du.returnFilePaths(path, testIds, sessionIds=sessionIds)
-    ds_test = du.EEG_dataset_from_paths(subPath, 
-                                        beforePts=beforePts,afterPts=afterPts, 
-                                        targetPts=targetPts, channelIdxs=channelIds,
-                                        preprocess=False,limit=testSize,
-                                        transform=mytransform
-                                        )
-    dl_test = torch.utils.data.DataLoader(ds_test, batch_size=1, shuffle=False,
-                                          num_workers = 8)
-    return dl_test
-
-
-dl_test_one = getData()
-
-file_name=''
-models = []
-n = []
-beforePts = 512
-afterPts = 512
-targetPts = 96
-
-
-data_iter = iter(dl_test_one)
-
-for i in range(5): # Number of plots 
-    x, y = next(data_iter)
-    
-    colors = plt.cm.Paired([1,5])
-    ax = plt.axes()
-    ax.set_facecolor("#F8F8F8")
-    for i in range(models):
-        model = get_model(models[i], n[i], beforePts, afterPts, targetPts)
-        pred = model(x) 
-    
+    for i in range(5):  
+        x, y = next(data_iter)
         
-        x1, x2= x # x1 before and x2 after window
-        plt.plot(range(1, pred+1), pred[0].detach().numpy(), 
-                  label=models[i], color = colors[0])
-    plt.plot(range(1, targetPts+1), y[0].detach().numpy(), 
-              label='Prediction', color = colors[1])
+        colors = plt.cm.Paired([1,5])
+        ax = plt.axes()
+        ax.set_facecolor("#F8F8F8")
+        for i in range(models):
+            model = get_model(models[i], n[i], beforePts, afterPts, targetPts)
+            pred = model(x) 
+            
+            x1, x2= x # x1 before and x2 after window
+            plt.plot(range(1, pred+1), pred[0].detach().numpy(), 
+                      label=models[i], color = colors[0])
+            
+        plt.plot(range(1, targetPts+1), y[0].detach().numpy(), 
+                  label='Prediction', color = colors[1])
+        
+        plt.title('Predicted and target EEG')
+        plt.xlabel('')
+        plt.ylabel('')
+        plt.legend()
     
-    plt.title('Predicted and target EEG')
-    plt.xlabel('')
-    plt.ylabel('')
-    plt.legend()
+        if file_name: 
+            figure = plt.gcf()
+            figure.set_size_inches(12, 8)
+            plt.savefig(file_name, dpi = 100, bbox_inches='tight')
+        plt.show()
+        
+        
+if __name__ == '__main__':
 
-    if file_name: 
-        figure = plt.gcf()
-        figure.set_size_inches(12, 8)
-        plt.savefig(file_name, dpi = 100, bbox_inches='tight')
-    plt.show()
+    path= 'Y:\\NTdata\\BIDS\\EESM19\\derivatives\\cleaned_1\\'
+    # path = '/data/'
+    save = 'Final_plots_MAE'
+    filenames = ['THES-75',
+                 'THES-76']
+    labels = ['L1',
+              'TUPE']
+    
+    # Get MAE plot over points for all the models in one plot 
+    MAE_grouped_plot(filenames, labels, './test_plots/MAE_All')
+    
+    
+    # Get data
+    dl_test_one = getData(path,
+                          512, 512, 96, [1, 19, 23], ['001', '002', '003', '004'],
+                          CH = False)
+    CH_dl_test_one = getData(path,
+                          512, 512, 96, [1, 19, 23], ['001', '002', '003', '004'],
+                          CH = True)
+    
+    file_name=''
+    models = ['CH-Indp',
+              'linear_model',
+              'vanilla',
+              'L1',
+              'LogCosh',
+              'overlapping',
+              'TUPE-A',
+              'TUPE-ALiBi',
+              'TUPE-R',
+              'ALiBi'
+              ]
+    n = ['THES-83',
+         'THES-71', 
+         'THES-70',
+         'THES-72',
+         'THES-73',
+         'THES-74',
+         'THES-75',
+         'THES-76',
+         'THES-77',
+         'THES-78'
+         ]
+    
+    create_prediction_plots(file_name, models, n)
