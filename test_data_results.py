@@ -12,16 +12,12 @@ import data_utils_channelIndp as CHdu
 import mne_bids as mb
 import json
 
-def abs_prediction_error(abs_pred_error, file_name, only_before):
+def abs_prediction_error(MAE, MSE, file_name, only_before):
     """
     X axis is the distance in points to last know point. 
     The first half and last half of points are displayed where the last half 
     has reversed points to fit with distance to points after. 
-    """
-    abs_pred_error = torch.cat(list(map(torch.tensor, abs_pred_error)), dim=0)
-    MSE = torch.mean(torch.mean(torch.square(abs_pred_error), dim=0)) # Overall 
-    
-    MAE = torch.mean(abs_pred_error, dim=0)
+    """ 
     print("Avg L1: ", sum(MAE)/len(MAE))
     print("Avg MSE: ", MSE)
     
@@ -311,8 +307,13 @@ def getTestResults(models_to_run, neptune_names, ds_test, dl_test):
             pred_er = abs(pred-y)
             pred_error.append(pred_er.detach()) # Add mean predicion over samples 
         
+        abs_pred_error = torch.cat(list(map(torch.tensor, pred_error)), dim=0)
+        torch.save(abs_pred_error, './transformer_prediction_error/' + n + '.pt')
+        
+        MSE = torch.mean(torch.mean(torch.square(abs_pred_error), dim=0)) # Overall 
+        MAE = torch.mean(abs_pred_error, dim=0)
         print("THIS IS m", m)
-        out = abs_prediction_error(pred_error, 'plot_destination' + n, 
+        out = abs_prediction_error(MAE, MSE, 'plot_destination' + n, 
                                    only_before = False)
         print(out)
         MAE_MSE[m] = out
@@ -391,6 +392,15 @@ LogCosh Transformer:
 Overlapping: 
     Avg L1:  tensor(8.2233)
     Avg MSE:  tensor(136.8165)
+    
+###########################
+{"L1": {"MAE": 8.224761009216309, "MSE": 136.9682159423828}, 
+"TUPE-A": {"MAE": 8.22001838684082, "MSE": 137.0672607421875}, 
+"TUPE-ALiBi": {"MAE": 8.192703247070312, "MSE": 136.14390563964844}, 
+"TUPE-R": {"MAE": 8.174788475036621, "MSE": 135.60061645507812}, 
+"ALiBi": {"MAE": 8.296942710876465, "MSE": 138.6736297607422}}
+
+
 
 """
 
