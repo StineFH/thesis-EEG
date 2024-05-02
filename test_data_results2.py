@@ -354,7 +354,7 @@ if __name__ == '__main__':
                      'L1',
                      #'LogCosh',
                      'overlapping',
-                     'TUPE-A',
+                     #'TUPE-A',
                      'TUPE-ALiBi',
                      'TUPE-R',
                      'ALiBi',
@@ -365,10 +365,10 @@ if __name__ == '__main__':
                      'THES-72',
                      #'THES-73',
                      'THES-74',
-                     'THES-75',
-                     'THES-76',
-                     'THES-77',
-                     'THES-78',
+                     #'THES-79',
+                     'THES-80',
+                     'THES-81',
+                     'THES-82',
                      #'THES-83'
                      ]
     getTestResults(models_to_run, neptune_names, ds_test, dl_test)

@@ -140,8 +140,8 @@ def getData(testSize, path,
                                             preprocess=False,limit=testSize,
                                             transform=mytransform
                                             )
-        dl_test = torch.utils.data.DataLoader(ds_test, batch_size=10000, shuffle=False,
-                                              num_workers = 8)
+        dl_test = torch.utils.data.DataLoader(ds_test, batch_size=10000, 
+                                              shuffle=False, num_workers=8)
     else: 
         subPath = du.returnFilePaths(path, testIds, sessionIds=sessionIds)
         ds_test = du.EEG_dataset_from_paths(subPath, 
@@ -151,7 +151,7 @@ def getData(testSize, path,
                                             transform=mytransform
                                             )
         dl_test = torch.utils.data.DataLoader(ds_test, batch_size=10000, shuffle=False,
-                                              num_workers = 8)
+                                              num_workers=8)
     return ds_test, dl_test
 # Import data channel independent 
 
@@ -361,14 +361,14 @@ def getTestResults(models_to_run, neptune_names, ds_test, dl_test,
             ####################### Visualize Prediction + original #######################
             # Could include a picture that 
             
-            print("Now making plots for prediction")
-            no = -1
-            data_iter = iter(CH_dl_test_one)
-            for i in range(5):
-                x, y = next(data_iter)
-                no += 1
-                file_name = plot_destination +'target-pred-' + n + str(no)
-                visualizeTargetPrediction(x, y, model, file_name, only_before=False)
+            # print("Now making plots for prediction")
+            # no = -1
+            # data_iter = iter(CH_dl_test_one)
+            # for i in range(5):
+            #     x, y = next(data_iter)
+            #     no += 1
+            #     file_name = plot_destination +'target-pred-' + n + str(no)
+            #     visualizeTargetPrediction(x, y, model, file_name, only_before=False)
 
         else: 
             pred_error = []
@@ -381,10 +381,11 @@ def getTestResults(models_to_run, neptune_names, ds_test, dl_test,
                 pred_error.append(pred_er.detach()) # Add mean predicion over samples 
             
             abs_pred_error = torch.cat(list(map(torch.tensor, pred_error)), dim=0)
-            torch.save(abs_pred_error, './transformer_prediction_error/' + n + '.pt')
             
             MSE = torch.mean(torch.mean(torch.square(abs_pred_error), dim=0)) # Overall 
             MAE = torch.mean(abs_pred_error, dim=0)
+            torch.save(MAE, './transformer_prediction_error/' + n + '.pt')
+            
             print("THIS IS m", m)
             out = abs_prediction_error(MAE, MSE, 'plot_destination' + n, 
                                        only_before = False)
@@ -396,14 +397,14 @@ def getTestResults(models_to_run, neptune_names, ds_test, dl_test,
             ####################### Visualize Prediction + original #######################
             # Could include a picture that 
             
-            print("Now making plots for prediction")
-            no = -1
-            data_iter = iter(dl_test_one)
-            for i in range(5):
-                x, y = next(data_iter)
-                no += 1
-                file_name = plot_destination +'target-pred-' + n + str(no)
-                visualizeTargetPrediction(x, y, model, file_name, only_before=False)
+            # print("Now making plots for prediction")
+            # no = -1
+            # data_iter = iter(dl_test_one)
+            # for i in range(5):
+            #     x, y = next(data_iter)
+            #     no += 1
+            #     file_name = plot_destination +'target-pred-' + n + str(no)
+            #     visualizeTargetPrediction(x, y, model, file_name, only_before=False)
         
     
         with open('./test_plots/MAE_MSE.json', 'w') as fp:
@@ -424,7 +425,8 @@ if __name__ == '__main__':
                       channelIds, sessionIds)
     
     CH_ds_test, CH_dl_test = getData(testSize, path, beforePts, afterPts, targetPts, 
-                      channelIds, sessionIds)
+                      channelIds, sessionIds,
+                      CH=True)
     models_to_run = ['CH-Indp',
                      'linear_model', 
                      'vanilla',

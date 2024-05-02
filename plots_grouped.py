@@ -4,6 +4,26 @@ import data_utils4 as du
 import data_utils_channelIndp as CHdu
 import mne_bids as mb
 
+filenames = ['THES-71',
+             'THES-72',
+             'THES-73',
+             'THES-74',
+             'THES-75'
+             'THES-76',
+             'THES-77',
+             'THES-78',
+             'THES-83']
+for i in filenames: 
+    abs_pred_error = torch.load("./transformer_prediction_error/"  + i + '.pt')
+    MAE = torch.mean(abs_pred_error, dim=0)
+    torch.save(MAE, './transformer_prediction_error/' + 'MAE-' + str(i) + '.pt')
+
+beforePts=512
+afterPts=512
+targetPts=96
+channelIds=[1, 19, 23]
+sessionIds=['001', '002', '003', '004']
+
 def get_model(m, n, beforePts, afterPts, targetPts):
     if m == "linear_model":
         model_path = './linear_model_snapshot/'
@@ -149,13 +169,29 @@ def get_model(m, n, beforePts, afterPts, targetPts):
             dropout=0.2,
             input_dropout=0.2,
             mask = None,
-            TUPE = False) 
-    
+            TUPE = False)
+    elif m == 'CH-Inp':
+        from ChannelIndpTransformerModel import ChiIndTUPEOverlappingTransformer
+        model = ChiIndTUPEOverlappingTransformer(
+            context_size=beforePts+afterPts, 
+            patch_size=64,
+            step = 64,
+            output_dim=targetPts,
+            model_dim=64*2,
+            num_heads = 16,
+            num_layers = 3,
+            lr=0.001,
+            warmup=warmup,
+            max_iters=max_iters,
+            dropout=0.2,
+            input_dropout=0.2,
+            mask = None,
+            only_before=False) 
+        
     model.load_state_dict(torch.load(model_path + n + '.pt'))
     return model
 
-def getData(testSize, path, 
-            beforePts, afterPts, targetPts, channelIds, sessionIds,
+def getData(path,  beforePts, afterPts, targetPts, channelIds, sessionIds,
             CH = False):
     def mytransform(raw):
         raw.filter(0.1, 40)
@@ -173,8 +209,7 @@ def getData(testSize, path,
                                             preprocess=False,limit=20,
                                             transform=mytransform
                                             )
-        dl_test = torch.utils.data.DataLoader(ds_test, batch_size=1, shuffle=False,
-                                              num_workers = 8)
+        dl_test = torch.utils.data.DataLoader(ds_test, batch_size=1, shuffle=False)
     else: 
         subPath = du.returnFilePaths(path, testIds, sessionIds=sessionIds)
         ds_test = du.EEG_dataset_from_paths(subPath, 
@@ -183,8 +218,7 @@ def getData(testSize, path,
                                             preprocess=False,limit=20,
                                             transform=mytransform
                                             )
-        dl_test = torch.utils.data.DataLoader(ds_test, batch_size=1, shuffle=False,
-                                              num_workers = 8)
+        dl_test = torch.utils.data.DataLoader(ds_test, batch_size=1, shuffle=False)
     return dl_test
 
 def MAE_grouped_plot(filenames, labels, save):
@@ -248,10 +282,25 @@ if __name__ == '__main__':
     path= 'Y:\\NTdata\\BIDS\\EESM19\\derivatives\\cleaned_1\\'
     # path = '/data/'
     save = 'Final_plots_MAE'
-    filenames = ['THES-75',
-                 'THES-76']
-    labels = ['L1',
-              'TUPE']
+    filenames = ['THES-71',
+                 'THES-72',
+                 'THES-73',
+                 'THES-74',
+                 'THES-75'
+                 'THES-76',
+                 'THES-77',
+                 'THES-78',
+                 'THES-83']
+    labels = ['Linear',
+              'MSE',
+              'L1',
+              'LogCosh',
+              'Overlapping',
+              'TUPE-A',
+              'TUPE-ALiBi',
+              'TUPE-R',
+              'ALiBi',
+              'Ch-Indp']
     
     # Get MAE plot over points for all the models in one plot 
     MAE_grouped_plot(filenames, labels, './test_plots/MAE_All')

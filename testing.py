@@ -238,7 +238,7 @@ def mytransform(raw):
 
 pl.seed_everything(42, workers=True)
 
-batchSize= 10000
+batchSize= 1000
 channelIdxs=[1,19,23] 
 valSub=0
 beforePts=512
@@ -253,6 +253,10 @@ trainIds.pop(valSub)
 
 for _ in range(18): # Remove some files 
     trainIds.pop(0)
+
+
+flattenOutSize= int((((512*2/2)-64)/32+1)*2*64*2)
+
 
 import data_utils_channelIndp as duCH
 
