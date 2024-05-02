@@ -4,19 +4,11 @@ import data_utils4 as du
 import data_utils_channelIndp as CHdu
 import mne_bids as mb
 
-filenames = ['THES-71',
-             'THES-72',
-             'THES-73',
-             'THES-74',
-             'THES-75'
-             'THES-76',
-             'THES-77',
-             'THES-78',
-             'THES-83']
-for i in filenames: 
-    abs_pred_error = torch.load("./transformer_prediction_error/"  + i + '.pt')
-    MAE = torch.mean(abs_pred_error, dim=0)
-    torch.save(MAE, './transformer_prediction_error/' + 'MAE-' + str(i) + '.pt')
+# abs_pred_error = torch.load("./transformer_prediction_error/"  + 'THES-70' + '.pt')
+
+# abs_pred_error = torch.cat(list(map(torch.tensor, abs_pred_error)), dim=0)
+# MSE = torch.mean(torch.mean(torch.square(abs_pred_error), dim=0)) # Overall 
+# MAE = torch.mean(abs_pred_error, dim=0)
 
 beforePts=512
 afterPts=512
@@ -222,26 +214,36 @@ def getData(path,  beforePts, afterPts, targetPts, channelIds, sessionIds,
     return dl_test
 
 def MAE_grouped_plot(filenames, labels, save):
-    colors = plt.cm.tab10([1,len(filenames)])
+    colors = {0: '#4477AA', 2: '#228833', 7:'#CCBB44', 9: '#AA3377', 
+              'others': '#BBBBBB'}
+    #https://personal.sron.nl/~pault/#sec:qualitative
     ax = plt.axes()
     ax.set_facecolor("#F8F8F8")
     
     for i in range(len(filenames)):
-        MAE = torch.load("./transformer_prediction_error/"  + filenames[i] + '.pt')
-        dist_from_known = range(1, MAE+1) 
-        assert len(MAE) % 2 == 0
-        plt.plot(dist_from_known, MAE, label=labels[i], color = colors[i])
-    plt.title('Average absolute prediction error')
+        MAE = torch.load("./transformer_prediction_error/" + 'MAE-' + filenames[i] + '.pt')
+        dist_from_known = range(1, len(MAE)+1) 
+        if i in [0, 2, 7, 9]:
+            plt.plot(dist_from_known, MAE, label=labels[i], color = colors[i])
+        else: 
+            plt.plot(dist_from_known, MAE, label=labels[i], 
+                     color = colors['others'], alpha=0.4)
+    plt.title('')
     plt.xlabel('Distance from last point before target')
-    plt.xticks(list(dist_from_known[::4]))
+    plt.xticks(list(dist_from_known[::10]))
     plt.ylabel('Average absolute prediction error')
-    plt.legend()
+    
+    # plt.legend(loc='upper center', bbox_to_anchor=(0.5, 1.1),
+    #             ncol=5, fancybox=True, shadow=False)
+    plt.legend(loc='center right', bbox_to_anchor=(1.16, 0.5),
+                ncol=1, fancybox=True, shadow=False)
     if save:
-        plt.savefig(save)
+        figure = plt.gcf()
+        figure.set_size_inches(12, 8)
+        plt.savefig(save, dpi = 100)
     plt.show()
 
 def create_prediction_plots(file_name, models, n):
-
     beforePts = 512
     afterPts = 512
     targetPts = 96
@@ -275,18 +277,39 @@ def create_prediction_plots(file_name, models, n):
             figure.set_size_inches(12, 8)
             plt.savefig(file_name, dpi = 100, bbox_inches='tight')
         plt.show()
-        
-        
+
+
+def modelSizesPlot(layers, file_name, save=None):
+    MAE_MSE_sizes = torch.load('./test_plots/' + file_name + '.pt')
+    MAE_MSE_sizes = {'16':{'MAE':0.4, 'MSE':3}, '64':{'MAE':0.2, 'MSE':6}, 
+                     '128':{'MAE':0.4, 'MSE':5}}       
+    
+    x_axis = [d+"/"+ str(l) for d, l in zip(MAE_MSE_sizes.keys(), layers)]
+    MAE, MSE = list(zip(*list(map(lambda x: x.values(), MAE_MSE_sizes.values()))))
+    
+    plt.plot(x_axis, MAE)
+    plt.plot(x_axis, MAE, marker = 'o')
+    plt.title('Model size')
+    plt.xlabel('model_dim/n_layers')
+    plt.ylabel('Validation loss')
+    if save:
+        figure = plt.gcf()
+        figure.set_size_inches(12, 8)
+        plt.savefig(save, dpi = 100)
+    plt.show()
+
+
 if __name__ == '__main__':
 
     path= 'Y:\\NTdata\\BIDS\\EESM19\\derivatives\\cleaned_1\\'
     # path = '/data/'
     save = 'Final_plots_MAE'
     filenames = ['THES-71',
+                 'THES-70',
                  'THES-72',
                  'THES-73',
                  'THES-74',
-                 'THES-75'
+                 'THES-75',
                  'THES-76',
                  'THES-77',
                  'THES-78',
@@ -339,3 +362,7 @@ if __name__ == '__main__':
          ]
     
     create_prediction_plots(file_name, models, n)
+    
+    ######################## MODEL SIZES #########################
+    layers = [1, 2, 3, 3*2, 3*5, 3*8, 3*12]
+    modelSizesPlot(layers, 'validation_loss_model_sizes')

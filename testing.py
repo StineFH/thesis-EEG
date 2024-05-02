@@ -260,17 +260,17 @@ flattenOutSize= int((((512*2/2)-64)/32+1)*2*64*2)
 
 import data_utils_channelIndp as duCH
 
-trainPaths=duCH.returnFilePaths(bidsPath,trainIds,sessionIds=['001']) # There is onlyone session in small dataset
+trainPaths=duCH.returnFilePaths(path,[testIds],sessionIds=['001']) # There is onlyone session in small dataset
 valPaths=duCH.returnFilePaths(bidsPath,[subjectIds[valSub]],sessionIds=['001'])
 
 print('Loading training data')
 ds_train_CHI =duCH.EEG_dataset_from_paths(trainPaths, beforePts=beforePts,
                                    afterPts=afterPts,targetPts=targetPts, 
                                    channelIdxs=channelIdxs,preprocess=False,
-                                    limit=None,train_size = 100000,
+                                    limit=None,train_size = 1000,
                                    transform=None
                                    )
-dl_train=torch.utils.data.DataLoader(ds_train_CHI, batch_size=batchSize, shuffle=True)
+dl_train=torch.utils.data.DataLoader(ds_train_CHI, batch_size=10000, shuffle=True)
 
 print('Loading validation data, subject = ' + subjectIds[valSub])
 ds_val_CHI = du.EEG_dataset_from_paths(valPaths, beforePts=beforePts,afterPts=afterPts,
@@ -289,17 +289,26 @@ x1 = x1.unfold(dimension = 2, size = 64,
 x2 = x2.unfold(dimension = 2, size = 64, 
              step = 32)
 x=torch.cat((x1,x2),dim=2)
-from ChannelIndpTransformerModel import ChiIndTUPEOverlappingTransformer,TUPEMultiheadAttention
 
+######################### MODEL SIZE #####################################
+def countNonEmbeddingParameters(model):
+    input_net = sum(p.numel() for p in model.input_net.parameters() if p.requires_grad)
+    R_PE = sum(p.numel() for p in model.R_PE.parameters() if p.requires_grad)
+    print("Embedding: ", input_net+R_PE)
+    
+    transformer_param = sum(p.numel() for p in model.transformer.parameters() if p.requires_grad)
+    output_net_param = sum(p.numel() for p in model.output_net.parameters() if p.requires_grad)
+    print("Non-embedding: ", transformer_param + output_net_param)
 
-transf_model = ChiIndTUPEOverlappingTransformer(
+from ChannelIndpTransformerModel import ChiIndTUPEOverlappingTransformer
+CH_model = ChiIndTUPEOverlappingTransformer(
     context_size=512+512, 
     patch_size=64,
-    step = 32,
+    step = 64,
     output_dim=96,
-    model_dim=64,
-    num_heads = 1,
-    num_layers = 1,
+    model_dim=64*7,
+    num_heads = 16,
+    num_layers = 3*8,
     lr=0.001,
     warmup=1,
     max_iters=100,
@@ -308,24 +317,25 @@ transf_model = ChiIndTUPEOverlappingTransformer(
     mask = None,
     only_before=False) 
 
+countNonEmbeddingParameters(CH_model)
+
+"""
+0 | metric              | L1Loss               | 0     
+1 | input_net           | Sequential           | 4.2 K 
+2 | positional_encoding | PositionalEncoding   | 0     
+3 | R_PE                | RelativePositionBias | 512   
+4 | transformer         | TransformerEncoder   | 123 K 
+5 | output_net          | Sequential           | 117 K 
+-------------------------------------------------------
+"""
+
 early_stopping = EarlyStopping(monitor="val_loss", min_delta=0.00,
                                patience=25, verbose=False, mode="min")
 
-trainer = pl.Trainer(#logger=neptune_logger,
+trainer = pl.Trainer(
                      accelerator='auto', #devices=1, # Devices = number of gpus 
                      callbacks=[early_stopping],
-                     max_epochs=3,
+                     max_epochs=1,
                      log_every_n_steps=10)
 
-trainer.fit(transf_model, dl_train, dl_val)
-
-batch = next(train_iter)
-transf_model(inputs)
-
-transf_model.configure_optimizers()
-transf_model.training_step(batch, 1)
-
-
-# q size torch.Size([10000, 16, 62, 2])
-# size of PE_attn:  torch.Size([10000, 16, 62, 62]) #Batch_size x  
-# size of word_attn:  torch.Size([10000, 16, 62, 62])
+trainer.fit(CH_model, dl_train, dl_train)

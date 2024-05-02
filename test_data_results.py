@@ -346,12 +346,13 @@ def getTestResults(models_to_run, neptune_names, ds_test, dl_test,
                 pred_error.append(pred_er.detach()) # Add mean predicion over samples 
             
             abs_pred_error = torch.cat(list(map(torch.tensor, pred_error)), dim=0)
-            torch.save(abs_pred_error, './transformer_prediction_error/' + n + '.pt')
-            
+        
             MSE = torch.mean(torch.mean(torch.square(abs_pred_error), dim=0)) # Overall 
             MAE = torch.mean(abs_pred_error, dim=0)
+            torch.save(MAE, './transformer_prediction_error/' + 'MAE-'+ n + '.pt')
+            
             print("THIS IS m", m)
-            out = abs_prediction_error(MAE, MSE, 'plot_destination' + n, 
+            out = abs_prediction_error(MAE, MSE, './test_plots/' + n, 
                                        only_before = False)
             print(out)
             MAE_MSE[m] = out
@@ -384,10 +385,10 @@ def getTestResults(models_to_run, neptune_names, ds_test, dl_test,
             
             MSE = torch.mean(torch.mean(torch.square(abs_pred_error), dim=0)) # Overall 
             MAE = torch.mean(abs_pred_error, dim=0)
-            torch.save(MAE, './transformer_prediction_error/' + n + '.pt')
+            torch.save(MAE, './transformer_prediction_error/' +'MAE-'+ n + '.pt')
             
-            print("THIS IS m", m)
-            out = abs_prediction_error(MAE, MSE, 'plot_destination' + n, 
+            print("THIS IS", m)
+            out = abs_prediction_error(MAE, MSE, './test_plots/' + n, 
                                        only_before = False)
             print(out)
             MAE_MSE[m] = out
@@ -427,8 +428,7 @@ if __name__ == '__main__':
     CH_ds_test, CH_dl_test = getData(testSize, path, beforePts, afterPts, targetPts, 
                       channelIds, sessionIds,
                       CH=True)
-    models_to_run = ['CH-Indp',
-                     'linear_model', 
+    models_to_run = ['linear_model', 
                      'vanilla',
                      'L1',
                      'LogCosh',
@@ -436,10 +436,10 @@ if __name__ == '__main__':
                      'TUPE-A',
                      'TUPE-ALiBi',
                      'TUPE-R',
-                     'ALiBi'
+                     'ALiBi',
+                     'CH-Indp'
                      ]
-    neptune_names = ['THES-83',
-                     'THES-71', 
+    neptune_names = ['THES-71', 
                      'THES-70',
                      'THES-72',
                      'THES-73',
@@ -447,7 +447,8 @@ if __name__ == '__main__':
                      'THES-75',
                      'THES-76',
                      'THES-77',
-                     'THES-78'
+                     'THES-78',
+                     'THES-83'
                      ]
     getTestResults(models_to_run, neptune_names, ds_test, dl_test,
                    CH_ds_test, CH_dl_test)
