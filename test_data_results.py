@@ -117,8 +117,6 @@ def visualizeTargetPrediction(x, y, model, file_name, only_before):
             plt.savefig(file_name, dpi = 100, bbox_inches='tight')
         plt.show()
 
-# Only channel independent needs it's own data 
-
 ############################### Import test data ##############################
 
 def getData(testSize, path, 

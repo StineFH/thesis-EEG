@@ -154,9 +154,9 @@ if __name__ == '__main__':
     afterPts=512
     targetPts=96
     
-    batchSize = 3333
-    train_size=2083333
-    limit_val=625000
+    batchSize = 3333*2
+    train_size=2083333*2
+    limit_val=625000*2
     
     dl_train, dl_val = getData(sessionIds, channelIdxs, beforePts, afterPts, 
                                targetPts,batchSize, train_size, limit_val)

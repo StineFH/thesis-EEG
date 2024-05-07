@@ -17,7 +17,7 @@ channelIds=[1, 19, 23]
 sessionIds=['001', '002', '003', '004']
 
 def get_model(m, n, beforePts, afterPts, targetPts):
-    if m == "linear_model":
+    if m == "Linear":
         model_path = './linear_model_snapshot/'
     else:
         model_path = './transformer_model_snapshot/'
@@ -25,7 +25,7 @@ def get_model(m, n, beforePts, afterPts, targetPts):
     warmup=6250
     max_iters=188000
     
-    if m == "linear_model":
+    if m == "Linear":
         from LinearModel import linearModel
         model = linearModel(0.001,
                                 beforePts+afterPts, 
@@ -162,7 +162,7 @@ def get_model(m, n, beforePts, afterPts, targetPts):
             input_dropout=0.2,
             mask = None,
             TUPE = False)
-    elif m == 'CH-Inp':
+    elif m == 'CH-Indp':
         from ChannelIndpTransformerModel import ChiIndTUPEOverlappingTransformer
         model = ChiIndTUPEOverlappingTransformer(
             context_size=beforePts+afterPts, 
@@ -243,59 +243,76 @@ def MAE_grouped_plot(filenames, labels, save):
         plt.savefig(save, dpi = 100)
     plt.show()
 
-def create_prediction_plots(file_name, models, n):
+def create_prediction_plots(file_name, models, n, CH_dl_test_one):
     beforePts = 512
     afterPts = 512
     targetPts = 96
     
-    data_iter = iter(dl_test_one)
-    
-    for i in range(5):  
-        x, y = next(data_iter)
+    data_iter = iter(CH_dl_test_one)
+    for i in range(3): # Number of different spots  
         
-        colors = plt.cm.Paired([1,5])
+        colors = {0: '#DDAA33', 1: '#BB5566', 2:'#004488'}
         ax = plt.axes()
         ax.set_facecolor("#F8F8F8")
-        for i in range(models):
-            model = get_model(models[i], n[i], beforePts, afterPts, targetPts)
-            pred = model(x) 
-            
-            x1, x2= x # x1 before and x2 after window
-            plt.plot(range(1, pred+1), pred[0].detach().numpy(), 
-                      label=models[i], color = colors[0])
-            
-        plt.plot(range(1, targetPts+1), y[0].detach().numpy(), 
-                  label='Prediction', color = colors[1])
+        x, y = next(data_iter)
         
-        plt.title('Predicted and target EEG')
-        plt.xlabel('')
-        plt.ylabel('')
-        plt.legend()
+        for c in range(3): # Making a plot for each channel 
+            for j in range(len(models)):
+                print(models[j])
+                if models[j] == 'CH-Indp':
+                    model = get_model(models[j], n[j], beforePts, afterPts, targetPts)
+                    pred = model(x) 
+                    
+                    plt.plot(range(1, targetPts+1), pred[c,:].detach().numpy(),
+                             color = colors[j+1],label=models[j])
+                else: 
+                    x1, x2 = x
     
-        if file_name: 
-            figure = plt.gcf()
-            figure.set_size_inches(12, 8)
-            plt.savefig(file_name, dpi = 100, bbox_inches='tight')
-        plt.show()
+                    model = get_model(models[j], n[j], beforePts, afterPts, targetPts)
+                    pred = model([x1[:,c,:], x2[:,c,:]]) 
+                    
+                    plt.plot(range(1, targetPts+1), pred[0].detach().numpy(), 
+                             color = colors[j+1], label=models[j])
+                
+            plt.plot(range(1, targetPts+1), y[0,c,:].detach().numpy(), 
+                      label='Target', color = colors[0])
+            plt.title('Predicted and target EEG')
+            plt.xlabel('')
+            plt.ylabel('Microvolt')
+            plt.legend(#loc='center right', bbox_to_anchor=(1.16, 0.5),
+                        #ncol=1, fancybox=True, shadow=False
+                        )
+            if file_name: 
+                figure = plt.gcf()
+                figure.set_size_inches(12, 8)
+                plt.savefig(file_name + str(i) + '_' +str(c), dpi = 100)
+            plt.show()
 
 
-def modelSizesPlot(layers, file_name, save=None):
-    MAE_MSE_sizes = torch.load('./test_plots/' + file_name + '.pt')
-    MAE_MSE_sizes = {'16':{'MAE':0.4, 'MSE':3}, '64':{'MAE':0.2, 'MSE':6}, 
-                     '128':{'MAE':0.4, 'MSE':5}}       
+def modelSizesPlot(layers, save=None):
+    # MAE_MSE_sizes = torch.load('./test_plots/' + file_name + '.pt')
+    MAE_MSE_sizes = {'16':{'MAE':6.687623500823975, 'MSE':86.76795196533203}, 
+                     '64':{'MAE': 6.447359561920166, 'MSE': 81.32015991210938}, 
+                     '128':{'MAE': 6.5262627601623535, 'MSE': 82.8070297241211},
+                     '192': {'MAE': 6.903939723968506, 'MSE': 91.82431030273438}}       
+
+    colors = {0: '#4477AA'}
+    #https://personal.sron.nl/~pault/#sec:qualitative
+    ax = plt.axes()
+    ax.set_facecolor("#F8F8F8")
+    
     
     x_axis = [d+"/"+ str(l) for d, l in zip(MAE_MSE_sizes.keys(), layers)]
     MAE, MSE = list(zip(*list(map(lambda x: x.values(), MAE_MSE_sizes.values()))))
-    
-    plt.plot(x_axis, MAE)
-    plt.plot(x_axis, MAE, marker = 'o')
+    plt.plot(x_axis, MAE, color = colors[0])
+    plt.plot(x_axis, MAE, marker = 'o', color = colors[0])
     plt.title('Model size')
     plt.xlabel('model_dim/n_layers')
     plt.ylabel('Validation loss')
     if save:
         figure = plt.gcf()
         figure.set_size_inches(12, 8)
-        plt.savefig(save, dpi = 100)
+        plt.savefig('./test_plots/' + save, dpi = 100)
     plt.show()
 
 
@@ -303,7 +320,6 @@ if __name__ == '__main__':
 
     path= 'Y:\\NTdata\\BIDS\\EESM19\\derivatives\\cleaned_1\\'
     # path = '/data/'
-    save = 'Final_plots_MAE'
     filenames = ['THES-71',
                  'THES-70',
                  'THES-72',
@@ -337,31 +353,30 @@ if __name__ == '__main__':
                           512, 512, 96, [1, 19, 23], ['001', '002', '003', '004'],
                           CH = True)
     
-    file_name=''
     models = ['CH-Indp',
-              'linear_model',
-              'vanilla',
-              'L1',
-              'LogCosh',
-              'overlapping',
-              'TUPE-A',
-              'TUPE-ALiBi',
-              'TUPE-R',
-              'ALiBi'
+              'Linear'
+              # 'vanilla',
+              # 'L1',
+              # 'LogCosh',
+              # 'overlapping',
+              # 'TUPE-A',
+              # 'TUPE-ALiBi',
+              # 'TUPE-R',
+              # 'ALiBi'
               ]
     n = ['THES-83',
-         'THES-71', 
-         'THES-70',
-         'THES-72',
-         'THES-73',
-         'THES-74',
-         'THES-75',
-         'THES-76',
-         'THES-77',
-         'THES-78'
+         'THES-71'
+         # 'THES-70',
+         # 'THES-72',
+         # 'THES-73',
+         # 'THES-74',
+         # 'THES-75',
+         # 'THES-76',
+         # 'THES-77',
+         # 'THES-78'
          ]
     
-    create_prediction_plots(file_name, models, n)
+    create_prediction_plots('./test_plots/predictions_', models, n, CH_dl_test_one)
     
     ######################## MODEL SIZES #########################
     layers = [1, 2, 3, 3*2, 3*5, 3*8, 3*12]
