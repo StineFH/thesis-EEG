@@ -3,8 +3,9 @@ import torch
 import data_utils4 as du
 import data_utils_channelIndp as CHdu
 import mne_bids as mb
+import json
 
-# abs_pred_error = torch.load("./transformer_prediction_error/"  + 'THES-70' + '.pt')
+# abs_pred_error = torch.load("./transformer_prediction_error/"  + 'THES-90' + '.pt')
 
 # abs_pred_error = torch.cat(list(map(torch.tensor, abs_pred_error)), dim=0)
 # MSE = torch.mean(torch.mean(torch.square(abs_pred_error), dim=0)) # Overall 
@@ -15,6 +16,7 @@ afterPts=512
 targetPts=96
 channelIds=[1, 19, 23]
 sessionIds=['001', '002', '003', '004']
+
 
 def get_model(m, n, beforePts, afterPts, targetPts):
     if m == "Linear":
@@ -214,8 +216,7 @@ def getData(path,  beforePts, afterPts, targetPts, channelIds, sessionIds,
     return dl_test
 
 def MAE_grouped_plot(filenames, labels, save):
-    colors = {0: '#4477AA', 2: '#228833', 7:'#CCBB44', 9: '#AA3377', 
-              'others': '#BBBBBB'}
+    colors = {0: '#004488', 9: '#BB5566', 'others': '#BBBBBB'}
     #https://personal.sron.nl/~pault/#sec:qualitative
     ax = plt.axes()
     ax.set_facecolor("#F8F8F8")
@@ -223,20 +224,21 @@ def MAE_grouped_plot(filenames, labels, save):
     for i in range(len(filenames)):
         MAE = torch.load("./transformer_prediction_error/" + 'MAE-' + filenames[i] + '.pt')
         dist_from_known = range(1, len(MAE)+1) 
-        if i in [0, 2, 7, 9]:
+        if i in [0, 9]:
             plt.plot(dist_from_known, MAE, label=labels[i], color = colors[i])
         else: 
             plt.plot(dist_from_known, MAE, label=labels[i], 
                      color = colors['others'], alpha=0.4)
+    # plt.title('Mean absolute prediction error')
     plt.title('')
     plt.xlabel('Distance from last point before target')
     plt.xticks(list(dist_from_known[::10]))
     plt.ylabel('Average absolute prediction error')
     
-    # plt.legend(loc='upper center', bbox_to_anchor=(0.5, 1.1),
-    #             ncol=5, fancybox=True, shadow=False)
-    plt.legend(loc='center right', bbox_to_anchor=(1.16, 0.5),
-                ncol=1, fancybox=True, shadow=False)
+    plt.legend(loc='upper center', bbox_to_anchor=(0.5, 1.1),
+                ncol=5, fancybox=True, shadow=False)
+    # plt.legend(loc='center right', bbox_to_anchor=(1.16, 0.5),
+    #             ncol=1, fancybox=True, shadow=False)
     if save:
         figure = plt.gcf()
         figure.set_size_inches(12, 8)
@@ -289,30 +291,38 @@ def create_prediction_plots(file_name, models, n, CH_dl_test_one):
             plt.show()
 
 
-def modelSizesPlot(layers, save=None):
-    # MAE_MSE_sizes = torch.load('./test_plots/' + file_name + '.pt')
-    MAE_MSE_sizes = {'16':{'MAE':6.687623500823975, 'MSE':86.76795196533203}, 
-                     '64':{'MAE': 6.447359561920166, 'MSE': 81.32015991210938}, 
-                     '128':{'MAE': 6.5262627601623535, 'MSE': 82.8070297241211},
-                     '192': {'MAE': 6.903939723968506, 'MSE': 91.82431030273438}}       
-
-    colors = {0: '#4477AA'}
+def modelSizesPlot(S_filename, B_filename, labels, save=None):
+    layers = [1, 2, 3, 3*2, 3*5, 3*8]
+    f = open('./test_plots/' + S_filename + '.json')
+    S_MAE = json.load(f)
+    f.close()
+    
+    f = open('./test_plots/' + B_filename + '.json')
+    B_MAE = json.load(f)
+    f.close()
+    
+    colors = {0: '#004488', 1: '#BB5566'}
     #https://personal.sron.nl/~pault/#sec:qualitative
     ax = plt.axes()
     ax.set_facecolor("#F8F8F8")
     
     
-    x_axis = [d+"/"+ str(l) for d, l in zip(MAE_MSE_sizes.keys(), layers)]
-    MAE, MSE = list(zip(*list(map(lambda x: x.values(), MAE_MSE_sizes.values()))))
-    plt.plot(x_axis, MAE, color = colors[0])
-    plt.plot(x_axis, MAE, marker = 'o', color = colors[0])
+    x_axis = [d+"/"+ str(l) for d, l in zip(S_MAE.keys(), layers)]
+    S_MAE, S_MSE = list(zip(*list(map(lambda x: x.values(), S_MAE.values()))))
+    B_MAE, B_MSE = list(zip(*list(map(lambda x: x.values(), B_MAE.values()))))
+    plt.plot(x_axis, S_MAE, color = colors[0], label=labels[0])
+    plt.plot(x_axis, S_MAE, marker = 'o', color = colors[0])
+    plt.plot(x_axis, B_MAE, color = colors[1], label=labels[1])
+    plt.plot(x_axis, B_MAE, marker = 'o', color = colors[1])
     plt.title('Model size')
     plt.xlabel('model_dim/n_layers')
     plt.ylabel('Validation loss')
+    plt.legend(title = 'Dataset Size')
     if save:
-        figure = plt.gcf()
-        figure.set_size_inches(12, 8)
-        plt.savefig('./test_plots/' + save, dpi = 100)
+        # figure = plt.gcf()
+        # figure.set_size_inches(12, 8)
+        plt.savefig('./test_plots/' + save#, dpi = 100
+                    )
     plt.show()
 
 
@@ -342,8 +352,9 @@ if __name__ == '__main__':
               'Ch-Indp']
     
     # Get MAE plot over points for all the models in one plot 
-    MAE_grouped_plot(filenames, labels, './test_plots/MAE_All')
+    MAE_grouped_plot(filenames, labels, './test_plots/MAE_All2')
     
+    ######################################################################
     
     # Get data
     dl_test_one = getData(path,
@@ -378,6 +389,9 @@ if __name__ == '__main__':
     
     create_prediction_plots('./test_plots/predictions_', models, n, CH_dl_test_one)
     
-    ######################## MODEL SIZES #########################
-    layers = [1, 2, 3, 3*2, 3*5, 3*8, 3*12]
-    modelSizesPlot(layers, 'validation_loss_model_sizes')
+    ############################# MODEL SIZES ################################
+    
+    S_filename = 'S_validation_loss_model_sizes'
+    B_filename = 'B_validation_loss_model_sizes'
+    labels = ['2M', '4M']
+    modelSizesPlot(S_filename, B_filename, labels, 'validation_loss_model_sizes')

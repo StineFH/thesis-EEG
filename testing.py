@@ -30,6 +30,28 @@ targetPts=96
 bidsPath= 'Y:\\NTdata\\BIDS\\EESM17\\'
 subjectIds=mb.get_entity_vals(bidsPath,'subject', with_key=False)
 
+############################ Sampling rate ############################
+import mne
+bidsPath = 'Y:\\NTdata\\BIDS\\EESM19\\derivatives\\cleaned_1\\'
+file_path = 'Y:/NTdata/BIDS/EESM19/derivatives/cleaned_1/sub-004/ses-001/eeg/sub-004_ses-001_task-sleep_acq-PSG_desc-cleaned1_eeg.set'
+tempRaw=mne.io.read_raw_eeglab(file_path,preload=True,verbose=False)
+
+tempRaw.info["sfreq"] #250
+
+"""
+Full length: 
+
+tempRaw.n_times
+Out[156]: 7575975
+
+7575975/250
+Out[157]: 30303.9
+
+30303/60
+Out[158]: 505.05
+"""
+#######################################################################
+
 trainIds=subjectIds.copy()[3:]
 
 for _ in range(6): # Remove some files 
@@ -208,9 +230,9 @@ from RelativeTUPETransformerModel import RelativeTUPETransformer
 trans_model=RelativeTUPETransformer(
     context_size=512+512, 
     patch_size=64,
-    step = 32,
+    step = 64,
     output_dim=96,
-    model_dim=64,
+    model_dim=64*2,
     num_heads = 16,
     num_layers = 3,
     lr=0.001,
@@ -219,6 +241,11 @@ trans_model=RelativeTUPETransformer(
     dropout=0.2,
     input_dropout=0.2,
     mask = None)
+
+
+sum(p.numel() for p in trans_model.R_PE.parameters() if p.requires_grad)
+#Different for each head= 
+1024/64
 
 inputs, y = next(train_iter)
 
@@ -302,13 +329,13 @@ def countNonEmbeddingParameters(model):
 
 from ChannelIndpTransformerModel import ChiIndTUPEOverlappingTransformer
 CH_model = ChiIndTUPEOverlappingTransformer(
-    context_size=512+512, 
+    context_size=2048+2048, 
     patch_size=64,
     step = 64,
     output_dim=96,
-    model_dim=64*7,
+    model_dim=64*2,
     num_heads = 16,
-    num_layers = 3*8,
+    num_layers = 3,
     lr=0.001,
     warmup=1,
     max_iters=100,
@@ -318,6 +345,7 @@ CH_model = ChiIndTUPEOverlappingTransformer(
     only_before=False) 
 
 countNonEmbeddingParameters(CH_model)
+CH_model.patches
 
 """
 0 | metric              | L1Loss               | 0     
@@ -332,10 +360,13 @@ countNonEmbeddingParameters(CH_model)
 early_stopping = EarlyStopping(monitor="val_loss", min_delta=0.00,
                                patience=25, verbose=False, mode="min")
 
-trainer = pl.Trainer(
+trainer = pl.Trainer(logger=neptune_logger,
                      accelerator='auto', #devices=1, # Devices = number of gpus 
                      callbacks=[early_stopping],
                      max_epochs=1,
                      log_every_n_steps=10)
 
 trainer.fit(CH_model, dl_train, dl_train)
+
+
+

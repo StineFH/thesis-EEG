@@ -94,7 +94,11 @@ def runExperiment(
         project="stinefh/thesis-EEG", 
         source_files=["benchmark_linear_model.py", 
                       "data_utils4.py", 
-                      "LinearModel.py"]
+                      "LinearModel.py"],
+        capture_hardware_metrics=False,
+        capture_stdout=False,
+        capture_stderr=False,
+        capture_traceback=False
         # tags=neptuneTags
         )
     neptune_logger.log_hyperparams({'valSub':subjectIds[valSub]})

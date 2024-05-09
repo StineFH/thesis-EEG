@@ -62,11 +62,11 @@ def runExperiment(
         bidsPath = tempPath
         
     subjectIds=mb.get_entity_vals(bidsPath,'subject', with_key=False)
-    trainIds=subjectIds.copy()[6:]
-    valIds = subjectIds.copy()[3:6]
+    trainIds=subjectIds.copy()#[6:]
+    valIds = subjectIds.copy()#[3:6]
 
-    trainPaths=du.returnFilePaths(bidsPath,trainIds,sessionIds=sessionIds) # There is onlyone session in small dataset
-    valPaths=du.returnFilePaths(bidsPath,valIds,sessionIds=sessionIds)
+    trainPaths=du.returnFilePaths(bidsPath,trainIds,sessionIds=['001', '002']) # There is onlyone session in small dataset
+    valPaths=du.returnFilePaths(bidsPath,valIds,sessionIds=['003'])
     
     
     print('Loading training data')
@@ -97,7 +97,11 @@ def runExperiment(
         project="stinefh/thesis-EEG", 
         source_files=["run_CHIndTUPETransformer.py", 
                       "data_utils_channelIndp.py", 
-                      "ChannelIndpTransformerModel.py"]
+                      "ChannelIndpTransformerModel.py"],
+        capture_hardware_metrics=False,
+        capture_stdout=False,
+        capture_stderr=False,
+        capture_traceback=False
         # tags=neptuneTags
         )
     neptune_logger.log_hyperparams({'valSub':subjectIds[valSub]})

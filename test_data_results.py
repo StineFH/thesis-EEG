@@ -151,24 +151,23 @@ def getData(testSize, path,
         dl_test = torch.utils.data.DataLoader(ds_test, batch_size=10000, shuffle=False,
                                               num_workers=8)
     return ds_test, dl_test
-# Import data channel independent 
+ 
 
 ############################### Get MSE and MAE ###############################
 
 
-def getTestResults(models_to_run, neptune_names, ds_test, dl_test,
-                   CH_ds_test, CH_dl_test):
-    dl_test_one = torch.utils.data.DataLoader(ds_test, batch_size=1, 
-                                              shuffle=False, num_workers = 8)
-    CH_dl_test_one = torch.utils.data.DataLoader(CH_ds_test, batch_size=1, 
-                                              shuffle=False, num_workers = 8)
+def getTestResults(models_to_run, neptune_names,CH_ds_test, CH_dl_test,
+                   ds_test=None, dl_test=None):
+    # dl_test_one = torch.utils.data.DataLoader(ds_test, batch_size=1, 
+    #                                           shuffle=False, num_workers = 8)
+    # CH_dl_test_one = torch.utils.data.DataLoader(CH_ds_test, batch_size=1, 
+    #                                           shuffle=False, num_workers = 8)
     MAE_MSE = {}
     for m, n in zip(models_to_run, neptune_names):
         if m == "linear_model":
             model_path = './linear_model_snapshot/'
         else:
             model_path = './transformer_model_snapshot/'
-        plot_destination = './test_plots/'
         
         warmup=6250
         max_iters=188000
@@ -317,9 +316,9 @@ def getTestResults(models_to_run, neptune_names, ds_test, dl_test,
                 patch_size=64,
                 step = 64,
                 output_dim=targetPts,
-                model_dim=64*2,
+                model_dim=64,
                 num_heads = 16,
-                num_layers = 3,
+                num_layers = 2,
                 lr=0.001,
                 warmup=warmup,
                 max_iters=max_iters,
@@ -327,7 +326,6 @@ def getTestResults(models_to_run, neptune_names, ds_test, dl_test,
                 input_dropout=0.2,
                 mask = None,
                 only_before=False)
-        
         
         model.load_state_dict(torch.load(model_path + n + '.pt'))
         
@@ -354,21 +352,8 @@ def getTestResults(models_to_run, neptune_names, ds_test, dl_test,
                                        only_before = False)
             print(out)
             MAE_MSE[m] = out
-            print("MAE and MSE: ", MAE_MSE[m])
-            # Also different for channel indp. 
-            
-            ####################### Visualize Prediction + original #######################
-            # Could include a picture that 
-            
-            # print("Now making plots for prediction")
-            # no = -1
-            # data_iter = iter(CH_dl_test_one)
-            # for i in range(5):
-            #     x, y = next(data_iter)
-            #     no += 1
-            #     file_name = plot_destination +'target-pred-' + n + str(no)
-            #     visualizeTargetPrediction(x, y, model, file_name, only_before=False)
-
+            print("MAE and MSE: ", MAE_MSE[m]) 
+        
         else: 
             pred_error = []
             iter_dl_test = iter(dl_test)
@@ -391,21 +376,7 @@ def getTestResults(models_to_run, neptune_names, ds_test, dl_test,
             print(out)
             MAE_MSE[m] = out
             print("MAE and MSE: ", MAE_MSE[m])
-            # Also different for channel indp. 
-            
-            ####################### Visualize Prediction + original #######################
-            # Could include a picture that 
-            
-            # print("Now making plots for prediction")
-            # no = -1
-            # data_iter = iter(dl_test_one)
-            # for i in range(5):
-            #     x, y = next(data_iter)
-            #     no += 1
-            #     file_name = plot_destination +'target-pred-' + n + str(no)
-            #     visualizeTargetPrediction(x, y, model, file_name, only_before=False)
-        
-    
+
         with open('./test_plots/MAE_MSE.json', 'w') as fp:
             json.dump(MAE_MSE, fp)
         
@@ -420,67 +391,37 @@ if __name__ == '__main__':
     testSize = 1875000
     sessionIds = ['001', '002', '003', '004']
     
-    ds_test, dl_test = getData(testSize, path, beforePts, afterPts, targetPts, 
-                      channelIds, sessionIds)
+    # ds_test, dl_test = getData(testSize, path, beforePts, afterPts, targetPts, 
+    #                   channelIds, sessionIds)
     
     CH_ds_test, CH_dl_test = getData(testSize, path, beforePts, afterPts, targetPts, 
                       channelIds, sessionIds,
                       CH=True)
-    models_to_run = ['linear_model', 
-                     'vanilla',
-                     'L1',
-                     'LogCosh',
-                     'overlapping',
-                     'TUPE-A',
-                     'TUPE-ALiBi',
-                     'TUPE-R',
-                     'ALiBi',
+    models_to_run = [#'linear_model', 
+                     # 'vanilla',
+                     # 'L1',
+                     # 'LogCosh',
+                     # 'overlapping',
+                     # 'TUPE-A',
+                     # 'TUPE-ALiBi',
+                     # 'TUPE-R',
+                     # 'ALiBi',
                      'CH-Indp'
                      ]
-    neptune_names = ['THES-71', 
-                     'THES-70',
-                     'THES-72',
-                     'THES-73',
-                     'THES-74',
-                     'THES-75',
-                     'THES-76',
-                     'THES-77',
-                     'THES-78',
-                     'THES-83'
+    neptune_names = [#'THES-71', 
+                     # 'THES-70',
+                     # 'THES-72',
+                     # 'THES-73',
+                     # 'THES-74',
+                     # 'THES-75',
+                     # 'THES-76',
+                     # 'THES-77',
+                     # 'THES-78',
+                     #'THES-83',
+                     'THES-90'
                      ]
-    getTestResults(models_to_run, neptune_names, ds_test, dl_test,
-                   CH_ds_test, CH_dl_test)
+    getTestResults(models_to_run, neptune_names, CH_ds_test, CH_dl_test
+                   #ds_test, dl_test
+                   )
 
-"""Test results
-    ##
-Linear model:
-    Avg L1:  tensor(8.2442)
-    Avg MSE:  tensor(142.0788)
-    
-Vanilla Transformer: 
-    Avg L1:  tensor(8.3323)
-    Avg MSE:  tensor(139.8540)
-
-L1 Transformer: 
-    Avg L1:  tensor(8.2164)
-    Avg MSE:  tensor(136.5007)
-
-LogCosh Transformer:    
-    Avg L1:  tensor(8.2945)
-    Avg MSE:  tensor(138.7707)
-
-Overlapping: 
-    Avg L1:  tensor(8.2233)
-    Avg MSE:  tensor(136.8165)
-    
-###########################
-{"L1": {"MAE": 8.224761009216309, "MSE": 136.9682159423828}, 
-"TUPE-A": {"MAE": 8.22001838684082, "MSE": 137.0672607421875}, 
-"TUPE-ALiBi": {"MAE": 8.192703247070312, "MSE": 136.14390563964844}, 
-"TUPE-R": {"MAE": 8.174788475036621, "MSE": 135.60061645507812}, 
-"ALiBi": {"MAE": 8.296942710876465, "MSE": 138.6736297607422}}
-
-
-
-"""
 

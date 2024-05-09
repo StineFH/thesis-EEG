@@ -82,7 +82,11 @@ def runCurrentModel(model_dims, n_layers, dl_train, dl_val):
         project="stinefh/thesis-EEG", 
         source_files=["run_CHIndTUPETransformer.py", 
                       "data_utils_channelIndp.py", 
-                      "ChannelIndpTransformerModel.py"]
+                      "ChannelIndpTransformerModel.py"],
+        capture_hardware_metrics=False,
+        capture_stdout=False,
+        capture_stderr=False,
+        capture_traceback=False
         # tags=neptuneTags
         )
     neptune_logger.log_hyperparams({'valSub':['004', '005', '006']})
@@ -162,8 +166,10 @@ if __name__ == '__main__':
                                targetPts,batchSize, train_size, limit_val)
     
     outputs = {}
-    model_dim = [16, 64, 64*2, 64*3, 64*4, 64*7]
-    layers = [1, 2, 3, 3*2, 3*5, 3*8]
+    model_dim = [#16, 64, 64*2, 64*3, 
+                 64*4]
+    layers = [#1, 2, 3, 3*2, 
+              3*5]
     
     assert len(model_dim) == len(layers), "model_dim and layers have different lengths"
 
@@ -178,10 +184,7 @@ if __name__ == '__main__':
     
     
 """
-
-Val loss for 16 :  {'MAE': 6.687623500823975, 'MSE': 86.76795196533203}
-Val loss for 64 :  {'MAE': 6.447359561920166, 'MSE': 81.32015991210938}
-Val loss for 128 :  {'MAE': 6.5262627601623535, 'MSE': 82.8070297241211}
-Val loss for 192 :  {'MAE': 6.903939723968506, 'MSE': 91.82431030273438}
-
+test loss for thes-90: 
+    {"CH-Indp": {"MAE": 7.651536464691162, "MSE": 117.03072357177734}}
+    
 """

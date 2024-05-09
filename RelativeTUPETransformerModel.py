@@ -241,7 +241,7 @@ class RelativePositionBias(nn.Module):
     def forward(self, qlen, klen):
         return self.compute_bias(qlen, klen)  # shape (1, num_heads, qlen, klen)
 
-        
+
 class PositionalEncoding(nn.Module):
     def __init__(self, d_model, max_len=5000):
         """
