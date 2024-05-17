@@ -40,6 +40,7 @@ class linearModel(pl.LightningModule):
 
         self.linear_regression = linearRegression(input_size, output_size)
         self.metric = torch.nn.MSELoss()
+
         
     def forward(self, inputs):
         x1, x2 = inputs 
@@ -85,12 +86,3 @@ class linearModel(pl.LightningModule):
     def optimizer_step(self, *args, **kwargs):
         super().optimizer_step(*args, **kwargs)
         self.lr_scheduler.step()  # Step per iteration
-
-# Testing 
-# lin_model = linearModel(0.001, 1000, 100, warmup = 100)
-# optimizer = optim.Adam(lin_model.parameters(), lr=0.001)
-# lr_scheduler = optim.lr_scheduler.ExponentialLR(optimizer, 
-#                                                       gamma=0.73)
-
-# lr_scheduler.get_last_lr()[0]
-# lr_scheduler.step()

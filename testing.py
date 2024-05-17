@@ -30,7 +30,93 @@ targetPts=96
 bidsPath= 'Y:\\NTdata\\BIDS\\EESM17\\'
 subjectIds=mb.get_entity_vals(bidsPath,'subject', with_key=False)
 
+def percentDifference(new, old):
+    print((new-old)/old*100)
+
+numbers = {"linear_model": {"MAE": 8.251923561096191, "MSE": 142.62442016601562}, 
+"vanilla": {"MAE": 8.341436386108398, "MSE": 140.40516662597656}, 
+"L1": {"MAE": 8.226238250732422, "MSE": 137.05406188964844}, 
+"LogCosh": {"MAE": 8.302467346191406, "MSE": 139.27798461914062}, 
+"overlapping": {"MAE": 8.232880592346191, "MSE": 137.25233459472656}, 
+"TUPE-A": {"MAE": 8.22114086151123, "MSE": 137.0876922607422}, 
+"TUPE-ALiBi": {"MAE": 8.196436882019043, "MSE": 136.2227325439453}, 
+"TUPE-R": {"MAE": 8.174236297607422, "MSE": 135.5532989501953}, 
+"ALiBi": {"MAE": 8.297511100769043, "MSE": 138.69561767578125}, 
+"CH-Indp": {"MAE": 7.648974895477295, "MSE": 116.88292694091797}}
+
+# TO L1
+percentDifference(numbers['L1']['MAE'], numbers['linear_model']['MAE'])
+percentDifference(numbers['L1']['MSE'], numbers['linear_model']['MSE'])
+
+#Overlapping
+percentDifference(numbers['overlapping']['MAE'], numbers['L1']['MAE'])
+percentDifference(numbers['overlapping']['MSE'], numbers['L1']['MSE'])
+
+# Relative TUPE
+percentDifference(numbers['TUPE-R']['MAE'], numbers['L1']['MAE'])
+percentDifference(numbers['TUPE-R']['MSE'], numbers['L1']['MSE'])
+
+#CH-indp 
+percentDifference(numbers['CH-Indp']['MAE'], numbers['TUPE-R']['MAE'])
+percentDifference(numbers['CH-Indp']['MSE'], numbers['TUPE-R']['MSE'])
+
+#Best model vs. linear model 
+percentDifference(numbers['CH-Indp']['MAE'], numbers['linear_model']['MAE'])
+percentDifference(numbers['CH-Indp']['MSE'], numbers['linear_model']['MSE'])
+
+
+percentDifference(6.421812057495117, 6.4262309074401855)#B
+percentDifference(6.44356107711792, 6.376743793487549) #S
+
+percentDifference(80.7712631225586, 80.65196990966797) #B
+percentDifference(79.54498291015625, 80.88289642333984) #S
+
+
+#Data split 
+percentDifference(7.61189079284668, 7.648073196411133) 
+percentDifference(7.075584411621094, 7.074428558349609) 
+
+# Loss by channel 
+percentDifference(5.516302585601807, 8.59657096862793) 
+percentDifference(8.824179649353027, 8.59657096862793) 
+
 ############################ Sampling rate ############################
+# B x C x P x L5  
+t = torch.tensor([[[[1, 1, 1, 1, 1]],
+                  [[2, 2, 2, 2, 2]],
+                  [[3, 3, 3, 3, 3]]],
+                  [[[1, 1, 1, 1, 1]],
+                    [[2, 2, 2, 2, 2]],
+                    [[3, 3, 3, 3, 3]]]])
+
+t_re = t.reshape(2*3, 1, 5)
+
+
+
+pred_error = []
+iter_dl_test = iter(dl_train)
+for i in range(int(testSize/1000)):
+    if i % 10 == 0: print("Calculating Prediction Error for Batch no: ", i)
+    x, y = next(iter_dl_test)
+    pred = model(x) 
+    B, C, NP = y.shape
+    print("Shape of pred before: ", pred.shape)
+    pred = pred.reshape(B, C, NP)
+    print("Shape of pred: ", pred.shape)
+    pred_er = abs(pred-y)
+    pred_error.append(pred_er.detach()) # Add mean predicion over samples 
+
+abs_pred_error = torch.cat(list(map(lambda x: x.clone().detach(), pred_error)), dim=0)
+
+MSE = torch.mean(torch.mean(torch.square(abs_pred_error), dim=0), dim=1) # Overall 
+
+MAE = torch.mean(abs_pred_error, dim=0)
+
+MAE = torch.mean(MAE, dim=1)
+
+
+t_re.reshape(2, 3, 1, 5)
+
 import mne
 bidsPath = 'Y:\\NTdata\\BIDS\\EESM19\\derivatives\\cleaned_1\\'
 file_path = 'Y:/NTdata/BIDS/EESM19/derivatives/cleaned_1/sub-004/ses-001/eeg/sub-004_ses-001_task-sleep_acq-PSG_desc-cleaned1_eeg.set'
@@ -272,13 +358,13 @@ beforePts=512
 afterPts=512
 targetPts=96
 
-# bidsPath= 'Y:\\NTdata\\BIDS\\EESM17\\'
-bidsPath = 'Y:\\NTdata\\BIDS\\EESM19\\derivatives\\cleaned_1\\'
+bidsPath= 'Y:\\NTdata\\BIDS\\EESM17\\'
+# bidsPath = 'Y:\\NTdata\\BIDS\\EESM19\\derivatives\\cleaned_1\\'
 subjectIds=mb.get_entity_vals(bidsPath,'subject', with_key=False)
 trainIds=subjectIds.copy()
 trainIds.pop(valSub)
 
-for _ in range(18): # Remove some files 
+for _ in range(8): # Remove some files 
     trainIds.pop(0)
 
 
@@ -287,7 +373,7 @@ flattenOutSize= int((((512*2/2)-64)/32+1)*2*64*2)
 
 import data_utils_channelIndp as duCH
 
-trainPaths=duCH.returnFilePaths(path,[testIds],sessionIds=['001']) # There is onlyone session in small dataset
+trainPaths=duCH.returnFilePaths(bidsPath,trainIds,sessionIds=['001']) # There is onlyone session in small dataset
 valPaths=duCH.returnFilePaths(bidsPath,[subjectIds[valSub]],sessionIds=['001'])
 
 print('Loading training data')
@@ -300,16 +386,39 @@ ds_train_CHI =duCH.EEG_dataset_from_paths(trainPaths, beforePts=beforePts,
 dl_train=torch.utils.data.DataLoader(ds_train_CHI, batch_size=10000, shuffle=True)
 
 print('Loading validation data, subject = ' + subjectIds[valSub])
-ds_val_CHI = du.EEG_dataset_from_paths(valPaths, beforePts=beforePts,afterPts=afterPts,
+ds_val_CHI = duCH.EEG_dataset_from_paths(trainPaths, beforePts=beforePts,afterPts=afterPts,
                                  targetPts=targetPts, channelIdxs=channelIdxs,
                                  preprocess=False,limit=100000,
                                  transform=mytransform)
-dl_val=torch.utils.data.DataLoader(ds_val_CHI, batch_size=batchSize)
+dl_val=torch.utils.data.DataLoader(ds_val_CHI, batch_size=3333)
 
 train_iter = iter(dl_train)
 inputs, y = next(train_iter)
 
 x1, x2 = inputs
+x_l = torch.cat((x1, x2),dim=2)
+B, C, L = x_l.shape
+x_l = x_l.reshape(B*C, L)
+
+from ChannelLinearModel import ChiIndLinearTransformer
+
+CH_model = ChiIndLinearTransformer(
+    context_size=512+512, 
+    patch_size=64,
+    step = 64,
+    output_dim=96,
+    model_dim=64*2,
+    num_heads = 16,
+    num_layers = 3,
+    lr=0.001,
+    warmup=1,
+    max_iters=100,
+    dropout=0.2,
+    input_dropout=0.2,
+    mask = None,
+    only_before=False) 
+
+CH_model(inputs)
 
 x1 = x1.unfold(dimension = 2, size = 64, 
              step = 32)
@@ -360,7 +469,7 @@ CH_model.patches
 early_stopping = EarlyStopping(monitor="val_loss", min_delta=0.00,
                                patience=25, verbose=False, mode="min")
 
-trainer = pl.Trainer(logger=neptune_logger,
+trainer = pl.Trainer(#logger=neptune_logger,
                      accelerator='auto', #devices=1, # Devices = number of gpus 
                      callbacks=[early_stopping],
                      max_epochs=1,

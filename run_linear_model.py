@@ -60,21 +60,21 @@ def runExperiment(
         bidsPath = tempPath
         
     subjectIds=mb.get_entity_vals(bidsPath,'subject', with_key=False)
-    trainIds=subjectIds.copy()[6:]
+    # trainIds=subjectIds.copy()[6:]
     valIds = subjectIds.copy()[3:6]
-    trainPaths=du.returnFilePaths(bidsPath,trainIds,sessionIds=sessionIds) # There is onlyone session in small dataset
+    # trainPaths=du.returnFilePaths(bidsPath,trainIds,sessionIds=sessionIds) # There is onlyone session in small dataset
     valPaths=du.returnFilePaths(bidsPath,valIds,sessionIds=sessionIds)
     
     
-    print('Loading training data')
-    ds_train=du.EEG_dataset_from_paths(trainPaths, beforePts=beforePts,
-                                       afterPts=afterPts,targetPts=targetPts, 
-                                       channelIdxs=channelIdxs,preprocess=False,
-                                        limit=None,train_size = train_size,
-                                        transform=mytransform
-                                       )
-    dl_train=torch.utils.data.DataLoader(ds_train, batch_size=batchSize, 
-                                         shuffle=True, num_workers=16)
+    # print('Loading training data')
+    # ds_train=du.EEG_dataset_from_paths(trainPaths, beforePts=beforePts,
+    #                                    afterPts=afterPts,targetPts=targetPts, 
+    #                                    channelIdxs=channelIdxs,preprocess=False,
+    #                                     limit=None,train_size = train_size,
+    #                                     transform=mytransform
+    #                                    )
+    # dl_train=torch.utils.data.DataLoader(ds_train, batch_size=batchSize, 
+    #                                      shuffle=True, num_workers=16)
     
     print('Loading validation data, subject = ' + str(valIds))
     ds_val=du.EEG_dataset_from_paths(valPaths, beforePts=beforePts,afterPts=afterPts,
@@ -82,29 +82,29 @@ def runExperiment(
                                      preprocess=False,limit=limit_val,transform=mytransform
                                      )
     dl_val=torch.utils.data.DataLoader(ds_val, batch_size=batchSize,
-                                       num_workers=16)
+                                       num_workers=8)
     
     ######################## Make Neptune Logger ############################
     #https://docs.neptune.ai/api/neptune/#init_run
     
-    NEPTUNE_API_TOKEN = 'eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiJkZTFjOGZiMS01NDFjLTRlMzktOTBiYS0yNDcxM2UzNWM2ZTYifQ=='
+    # NEPTUNE_API_TOKEN = 'eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiJkZTFjOGZiMS01NDFjLTRlMzktOTBiYS0yNDcxM2UzNWM2ZTYifQ=='
 
-    neptune_logger = pl.loggers.NeptuneLogger(
-        api_key = NEPTUNE_API_TOKEN,
-        project="stinefh/thesis-EEG", 
-        source_files=["benchmark_linear_model.py", 
-                      "data_utils4.py", 
-                      "LinearModel.py"],
-        capture_hardware_metrics=False,
-        capture_stdout=False,
-        capture_stderr=False,
-        capture_traceback=False
-        # tags=neptuneTags
-        )
-    neptune_logger.log_hyperparams({'valSub':subjectIds[valSub]})
-    neptune_logger.log_hyperparams({'trainSub':trainIds})
-    neptune_logger.log_hyperparams({'beforePts':beforePts, 'afterPts':afterPts})
-    neptune_logger.log_hyperparams({'lr schedular':"CosineWarmup"})
+    # neptune_logger = pl.loggers.NeptuneLogger(
+    #     api_key = NEPTUNE_API_TOKEN,
+    #     project="stinefh/thesis-EEG", 
+    #     source_files=["benchmark_linear_model.py", 
+    #                   "data_utils4.py", 
+    #                   "LinearModel.py"],
+    #     capture_hardware_metrics=False,
+    #     capture_stdout=False,
+    #     capture_stderr=False,
+    #     capture_traceback=False
+    #     # tags=neptuneTags
+    #     )
+    # neptune_logger.log_hyperparams({'valSub':subjectIds[valSub]})
+    # neptune_logger.log_hyperparams({'trainSub':trainIds})
+    # neptune_logger.log_hyperparams({'beforePts':beforePts, 'afterPts':afterPts})
+    # neptune_logger.log_hyperparams({'lr schedular':"CosineWarmup"})
     
     ################## make Model, Earlystop, Trainer and Fit #################
     lin_model = linearModel(0.001,
@@ -112,22 +112,23 @@ def runExperiment(
                             targetPts, 
                             warmup=warmup, 
                             max_iters=max_iters) 
-    early_stopping = EarlyStopping(monitor="val_loss", min_delta=0.00,
-                                   patience=25, verbose=False, mode="min")
+    # early_stopping = EarlyStopping(monitor="val_loss", min_delta=0.00,
+    #                                patience=25, verbose=False, mode="min")
     
-    trainer = pl.Trainer(logger=neptune_logger,
-                         accelerator='gpu', devices=2, # Devices = number of gpus 
-                         callbacks=[early_stopping],
-                         max_epochs=max_epochs,
-                         log_every_n_steps=50)
+    # trainer = pl.Trainer(logger=neptune_logger,
+    #                      accelerator='gpu', devices=2, # Devices = number of gpus 
+    #                      callbacks=[early_stopping],
+    #                      max_epochs=max_epochs,
+    #                      log_every_n_steps=50)
     
-    trainer.fit(lin_model, dl_train, dl_val)
+    #trainer.fit(lin_model, dl_train, dl_val)
     
     # Save best model
-    torch.save(lin_model.state_dict(), 'linear_model_snapshot/' + neptune_logger.version + '.pt')
+    #torch.save(lin_model.state_dict(), 'linear_model_snapshot/' + neptune_logger.version + '.pt')
     
     # Calculate average absolute prediction error 
-    lin_model.load_state_dict(torch.load("./linear_model_snapshot/" + neptune_logger.version + '.pt'))
+    neptune_name = 'THES-105'
+    lin_model.load_state_dict(torch.load("./linear_model_snapshot/" + neptune_name + '.pt'))
     pred_error = []
     iter_dl_val = iter(dl_val)
     for _ in range(int(limit_val/batchSize)):
@@ -136,18 +137,23 @@ def runExperiment(
         pred_er = abs(pred-y)
         pred_error.append(pred_er.detach().numpy()) # Add mean predicion over samples 
     
-    torch.save(pred_error, './lin_model_prediction_error/' + neptune_logger.version + '.pt')
+    abs_pred_error = torch.cat(list(map(torch.tensor, pred_error)), dim=0)
+    MSE = torch.mean(torch.mean(torch.square(abs_pred_error), dim=0)) # Overall 
+    MAE = torch.mean(abs_pred_error, dim=0)
     
-    neptune_logger.finalize('Success')
-    neptune_logger.experiment.stop()
+    print('MAE', float((sum(MAE)/len(MAE)).detach().numpy()), 'MSE', float(MSE.detach().numpy()))
+    torch.save(MAE, './lin_model_prediction_error/' + neptune_name + '.pt')
     
-    return trainer, lin_model
+    # neptune_logger.finalize('Success')
+    # neptune_logger.experiment.stop()
+    
+    #return trainer, lin_model
 
 ################################ Run Experiment ###############################
 
 targetPts=96
-beforePts=512
-afterPts=512
+beforePts=128
+afterPts=128
 
 sessionIds = ['001', '002', '003', '004'] 
 limit = 1875000 # validation dataset size

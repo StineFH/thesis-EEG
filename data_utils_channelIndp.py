@@ -127,7 +127,7 @@ class EEG_dataset_from_paths(torch.utils.data.Dataset):
         #keep looking until we find a data window without nan's
         data=np.nan
 
-        while np.any(np.isnan(data)):            
+        while np.any(np.isnan(data)):    
             randFileIdx=np.random.randint(0, len(self.raws))    
             randomIdx=np.random.randint(0, self.raws[randFileIdx].n_times-windowSize)
 

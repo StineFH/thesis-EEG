@@ -138,8 +138,6 @@ class EncoderBlock(nn.Module):
         # Layers to apply in between the main layers
         self.batchNorm1 = nn.BatchNorm1d(no_patches) # No of patches
         self.batchNorm2 = nn.BatchNorm1d(no_patches)
-        # self.norm1 = nn.LayerNorm(embed_dim)
-        # self.norm2 = nn.LayerNorm(embed_dim)
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, x, PE, PE_r, mask=None):
@@ -205,10 +203,10 @@ class RelativePositionBias(nn.Module):
         n = -relative_position
         if bidirectional:
             num_buckets //= 2
-            ret += (torch.tensor(n).clone().detach() < 0).to(torch.long) * num_buckets  
-            n = torch.abs(torch.tensor(n).clone().detach())
+            ret += (n.clone().detach() < 0).to(torch.long) * num_buckets  
+            n = torch.abs(n.clone().detach())
         else:
-            n = torch.max(n, torch.zeros_like(n))
+            n = torch.max(n, torch.zeros_like(n.clone().detach()))
         # now n is in the range [0, inf)
         # half of the buckets are for exact increments in positions
         max_exact = num_buckets // 2
@@ -270,7 +268,7 @@ class PositionalEncoding(nn.Module):
     def forward(self, x):
         return self.pe[:, : x.size(1)].repeat(x.size(0), 1, 1)
 
-class ChiIndTUPEOverlappingTransformer(pl.LightningModule):
+class ChiIndLinearTransformer(pl.LightningModule):
     def __init__(
         self,
         context_size, 
@@ -328,11 +326,7 @@ class ChiIndTUPEOverlappingTransformer(pl.LightningModule):
         self.patches = int((((self.hparams.context_size/2)-self.hparams.patch_size)/self.hparams.step+1)*2)
         flattenOutSize= int(self.patches*self.hparams.model_dim)
         
-        # # Output layer
-        # if only_before == True: 
-        #     flattenOutSize= int(((self.hparams.context_size - self.hparams.patch_size)/self.hparams.step+1)*self.hparams.model_dim)
-        # else: 
-        #     flattenOutSize= int((((self.hparams.context_size/2)-self.hparams.patch_size)/self.hparams.step+1)*2*self.hparams.model_dim)
+        self.linearModel = torch.nn.Linear(self.hparams.context_size, self.hparams.output_dim)
         
         self.output_net = nn.Sequential(
             nn.Flatten(),
@@ -395,8 +389,15 @@ class ChiIndTUPEOverlappingTransformer(pl.LightningModule):
         PE_r = self.R_PE(self.patches, self.patches)
         #forward pass
         x = self.input_net(x)
-        x = self.transformer(x, PE, PE_r, mask=self.hparams.mask) 
-        x=self.output_net(x)
+        x = self.transformer(x, PE, PE_r, mask=self.hparams.mask)
+        
+        # linear model 
+        x_l = torch.cat((x1, x2),dim=2)
+        x_l = x_l.reshape(B*C, self.hparams.context_size)
+        x_linear = self.linearModel(x_l)
+        
+        # transformer output net
+        x=self.output_net(x) + x_linear
 
         return x
     
@@ -417,8 +418,10 @@ class ChiIndTUPEOverlappingTransformer(pl.LightningModule):
         y = y.reshape(B*C, NP)
         loss = F.mse_loss(pred, y)
         
-        self.log("train_loss", loss, on_step=True, on_epoch=True, prog_bar=False, logger=True)
-        self.log("lr", self.lr_scheduler.get_last_lr()[0], on_step=True, on_epoch=True, prog_bar=False, logger=True)
+        self.log("train_loss", loss, on_step=True, on_epoch=True, 
+                 prog_bar=False, logger=True, sync_dist=True)
+        self.log("lr", self.lr_scheduler.get_last_lr()[0], on_step=True, 
+                 on_epoch=True, prog_bar=False, logger=True, sync_dist=True)
         
         return loss
         
@@ -430,6 +433,7 @@ class ChiIndTUPEOverlappingTransformer(pl.LightningModule):
         pred = self.forward(x)
         loss = self.metric(pred, y)
         
-        self.log("val_loss", loss, on_step=False, on_epoch=True, prog_bar=False, logger=True)
+        self.log("val_loss", loss, on_step=False, on_epoch=True, prog_bar=False, 
+                 logger=True, sync_dist=True)
     
         return loss
