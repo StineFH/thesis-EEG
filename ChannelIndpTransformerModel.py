@@ -205,8 +205,8 @@ class RelativePositionBias(nn.Module):
         n = -relative_position
         if bidirectional:
             num_buckets //= 2
-            ret += (torch.tensor(n).clone().detach() < 0).to(torch.long) * num_buckets  
-            n = torch.abs(torch.tensor(n).clone().detach())
+            ret += (n.clone().detach() < 0).to(torch.long) * num_buckets  
+            n = torch.abs(n.clone().detach())
         else:
             n = torch.max(n, torch.zeros_like(n))
         # now n is in the range [0, inf)

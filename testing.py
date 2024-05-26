@@ -140,7 +140,7 @@ Out[158]: 505.05
 
 trainIds=subjectIds.copy()[3:]
 
-for _ in range(6): # Remove some files 
+for _ in range(5): # Remove some files 
     trainIds.pop(0)
 
 trainPaths=du.returnFilePaths(bidsPath,trainIds,sessionIds=['001']) # There is onlyone session in small dataset
@@ -197,6 +197,8 @@ inputs, y = next(val_iter)
 
 # transf_model(inputs)
 
+linearModel = torch.nn.Linear(1024, 96)
+linearModel.weight.shape
 ############################# Calculate prediction error #####################
 # AVG abs error PRelu: Avg L1:  18.02904111862183
 # AVG abs error Relu: Avg L1:  16.37

@@ -203,6 +203,23 @@ def get_model(m, n, beforePts, afterPts, targetPts):
             input_dropout=0.2,
             mask = None,
             only_before=False) 
+    elif m == 'Ch-Linear':
+        from ChannelLinearModel import ChiIndLinearTransformer
+        model = ChiIndLinearTransformer(
+            context_size=beforePts+afterPts, 
+            patch_size=64,
+            step = 64,
+            output_dim=targetPts,
+            model_dim=64*2,
+            num_heads = 16,
+            num_layers = 3,
+            lr=0.001,
+            warmup=warmup,
+            max_iters=max_iters,
+            dropout=0.2,
+            input_dropout=0.2,
+            mask = None,
+            only_before=False) 
         
     model.load_state_dict(torch.load(model_path + n + '.pt'))
     return model
@@ -237,30 +254,46 @@ def getData(path,  beforePts, afterPts, targetPts, channelIds, sessionIds,
         dl_test = torch.utils.data.DataLoader(ds_test, batch_size=1, shuffle=False)
     return dl_test
 
-def MAE_grouped_plot(filenames, labels, save):
-    colors = {0: '#004488', 9: '#BB5566', 'others': '#BBBBBB'}
-    
-    fig, ax = plt.subplots(1, 1, figsize=set_size(width, fraction=0.85))
-    plt.rcParams.update(tex_fonts)
-    for i in range(len(filenames)):
-        MAE = torch.load("./transformer_prediction_error/" + 'MAE-' + filenames[i] + '.pt')
-        dist_from_known = range(1, len(MAE)+1) 
-        if i in [0, 9]:
-            ax.plot(dist_from_known, MAE, label=labels[i], color = colors[i])
-        else: 
-            ax.plot(dist_from_known, MAE, label=labels[i], 
-                     color = colors['others'], alpha=0.4)
+def MAE_grouped_plot(filenames, labels, save, channels = False):
+    if channels: 
+        fig, ax = plt.subplots(1, 1, figsize=set_size(width, fraction=0.75))
+        plt.rcParams.update(tex_fonts)
+        colors = {0: '#004488', 1: '#BB5566', 2: '#CCBB44'}
+        MAE = torch.load("./transformer_prediction_error/" + 'channnels' + filenames + '.pt')
+        dist_from_known = range(1, MAE.shape[1]+1) 
+        for i in range(3):
+            ax.plot(dist_from_known, MAE[i,:].detach().numpy(),
+                    label=labels[i], color = colors[i])
+        # plt.legend(title = "Channel", loc='center', bbox_to_anchor=(0.5, 0.21),
+        #              ncol=2, fancybox=True, shadow=False)
+        plt.legend(title = "Channel", loc='center right', bbox_to_anchor=(1.24, 0.5),
+                      ncol=1, fancybox=True, shadow=False)
+
+    else: 
+        fig, ax = plt.subplots(1, 1, figsize=set_size(width, fraction=0.85))
+        plt.rcParams.update(tex_fonts)
+        colors = {0: '#004488', 9: '#BB5566', 10: '#CCBB44', 'others': '#BBBBBB'}
+        for i in range(len(filenames)):
+            MAE = torch.load("./transformer_prediction_error/" + 'MAE-' + filenames[i] + '.pt')
+            dist_from_known = range(1, len(MAE)+1) 
+            if i in [0, 9, 10]:
+                ax.plot(dist_from_known, MAE, label=labels[i], color = colors[i],
+                        alpha=0.5)
+            else: 
+                ax.plot(dist_from_known, MAE, label=labels[i], 
+                         color = colors['others'], alpha=0.4)
+        
+        # plt.legend(loc='upper center', bbox_to_anchor=(0.5, 1.84),
+        #             ncol=2, fancybox=True, shadow=False)
+        plt.legend(loc='center right', bbox_to_anchor=(1.4, 0.5),
+                    ncol=1, fancybox=True, shadow=False)
+        # plt.legend(loc='center right', bbox_to_anchor=(2.24, 0.5),
+        #             ncol=2, fancybox=True, shadow=False)
     plt.title('')
-    plt.xlabel('Distance from last \n point before target')
+    plt.xlabel('Distance from last point before target')
     plt.xticks(list(dist_from_known[::10]))
     plt.ylabel('Test MAE')
-    
-    # plt.legend(loc='upper center', bbox_to_anchor=(0.5, 1.84),
-    #             ncol=2, fancybox=True, shadow=False)
-    plt.legend(loc='center right', bbox_to_anchor=(1.4, 0.5),
-                ncol=1, fancybox=True, shadow=False)
-    # plt.legend(loc='center right', bbox_to_anchor=(2.24, 0.5),
-    #             ncol=2, fancybox=True, shadow=False)
+
     if save:
         fig.savefig('./test_plots/' + save + '.pdf', format='pdf', bbox_inches='tight')
     plt.show()
@@ -272,8 +305,8 @@ def VaryingContextSizePlot(labels, save):
     MAE_error = list(zip(*list(map(lambda x: x.values(), MAE.values()))))
     colors = {0: '#004488', 1: '#BB5566'}
     x = ['128', '256', '512', '1024', '2048']
-
-    fig, ax = plt.subplots(1, 1, figsize=set_size(width, fraction=0.60))
+    
+    fig, ax = plt.subplots(1, 1, figsize=set_size(width, fraction=0.85))
     plt.rcParams.update(tex_fonts)
     plt.plot(x, MAE_error[0][0:5], label=labels[0], color = colors[0])
     plt.plot(x, MAE_error[0][0:5], marker = 'o', color = colors[0])
@@ -350,7 +383,6 @@ def modelSizesPlot(S_filename, B_filename, labels, save_MAE=None, save_MSE=None)
                     format='pdf', bbox_inches='tight')
     plt.show()
 
-
 def createAllPredictionPlots(file_name, models, n, CH_dl_test_one):
     beforePts = 512
     afterPts = 512
@@ -359,7 +391,7 @@ def createAllPredictionPlots(file_name, models, n, CH_dl_test_one):
     data_iter = iter(CH_dl_test_one)
     for i in range(30): # Number of different spots  
         
-        colors = {0: '#DDAA33', 1: '#BB5566', 2:'#004488'}
+        colors = {0: '#DDAA33', 1: '#BB5566', 2:'#004488', 3:'#228833'}
 
         x, y = next(data_iter)
         
@@ -370,6 +402,12 @@ def createAllPredictionPlots(file_name, models, n, CH_dl_test_one):
             for j in range(len(models)):
                 print(models[j])
                 if models[j] == 'CH-Indp':
+                    model = get_model(models[j], n[j], beforePts, afterPts, targetPts)
+                    pred = model(x) 
+                    
+                    plt.plot(range(1, targetPts+1), pred[c,:].detach().numpy(),
+                             color = colors[j+1],label=models[j])
+                elif models[j] == 'Ch-Linear':
                     model = get_model(models[j], n[j], beforePts, afterPts, targetPts)
                     pred = model(x) 
                     
@@ -447,31 +485,36 @@ def createThePredictionPlots(file_name, models, n, CH_dl_test_one):
 
 if __name__ == '__main__':
 
-    filenames = ['THES-71',
-                  'THES-70',
-                  'THES-72',
-                  'THES-73',
-                  'THES-74',
-                  'THES-75',
-                  'THES-76',
-                  'THES-77',
-                  'THES-78',
-                  'THES-83']
-    labels = ['Linear',
-              'MSE',
-              'L1',
-              'LogCosh',
-              'Overlapping',
-              'TUPE-A',
-              'TUPE-ALiBi',
-              'TUPE-R',
-              'ALiBi',
-              'Ch-Indp']
+    # filenames = ['THES-71',
+    #               'THES-70',
+    #               'THES-72',
+    #               'THES-73',
+    #               'THES-74',
+    #               'THES-75',
+    #               'THES-76',
+    #               'THES-77',
+    #               'THES-78',
+    #               'THES-83',
+    #               'THES-117']
+    # labels = ['Linear',
+    #           'MSE',
+    #           'L1',
+    #           'LogCosh',
+    #           'Overlapping',
+    #           'TUPE-A',
+    #           'TUPE-ALiBi',
+    #           'TUPE-R',
+    #           'ALiBi',
+    #           'Ch-Indp', 
+    #           'Ch-Linear']
+    
+    labels = ['1','19','23']
+    filenames = 'THES-117'
     
     # Get MAE plot over points for all the models in one plot 
-    MAE_grouped_plot(filenames, labels, 'MAE_All2')
+    MAE_grouped_plot(filenames, labels, 'MAE_channels_117', channels = True)
     
-    # ############################# MODEL SIZES ################################
+    ############################### MODEL SIZES ################################
     
     S_filename = 'MAE_MSE_model_sizes_all_small'
     B_filename = 'MAE_MSE_model_sizes_all_big'
@@ -480,28 +523,63 @@ if __name__ == '__main__':
                    'MAE_loss_model_sizes',
                    'MSE_loss_model_sizes')
     
-    # ########################### Varying Context Size ##########################
+    ############################# Varying Context Size ##########################
     
     labels = ['Linear', 'CH-Indp']
     VaryingContextSizePlot(labels, save = 'val_loss_varying_context')
     
     #####################################################################
-    # path= 'Y:\\NTdata\\BIDS\\EESM19\\derivatives\\cleaned_1\\'
-    # # path = '/data/'
+    path= 'Y:\\NTdata\\BIDS\\EESM19\\derivatives\\cleaned_1\\'
+    # path = '/data/'
     
-    # # Get data
+    # Get data
 
-    # CH_dl_test_one = getData(path,
-    #                       512, 512, 96, [1, 19, 23], ['001', '002', '003', '004'],
-    #                       CH = True)
+    CH_dl_test_one = getData(path,
+                          512, 512, 96, [1, 19, 23], ['001', '002', '003', '004'],
+                          CH = True)
     
-    # models = ['CH-Indp',
-    #           'Linear'
-    #           ]
-    # n = ['THES-83',
-    #       'THES-71'
-    #       ]
+    models = ['CH-Indp',
+              'Linear',
+              'Ch-Linear'
+              
+              ]
+    n = ['THES-83',
+          'THES-71',
+          'THES-117'
+          ]
     
     # createThePredictionPlots('predictions_', models, n, CH_dl_test_one)
 
-    # createAllPredictionPlots('predictions_', models, n, CH_dl_test_one)
+    createAllPredictionPlots('predictions_', models, n, CH_dl_test_one)
+
+
+    ############################ Visualize Weights ############################
+    model = get_model('Ch-Linear', 'THES-117', 512, 512, 96)
+
+    model_weights = model.state_dict().keys()
+    model_weights['linearModel.weight'].shape
+    model_weights['output_net.6.weight'].shape
+
+    lin_max = torch.max(model_weights['linearModel.weight'])
+    lin_min = torch.min(model_weights['linearModel.weight'])
+    lin_norm = (model_weights['linearModel.weight'] - lin_min) / (lin_max-lin_min)
+    torch.max(lin_norm[:,45:50])
+    torch.min(lin_norm[:,45:50])
+    torch.median(lin_norm[:,45:50])
+    
+    lin = plt.imshow(lin_norm[:,450:550], norm = None)
+    plt.colorbar(lin, location='right')
+    plt.show()
+    
+    lin = plt.imshow(lin_norm[:,(1024-96):1024], norm = None)
+    plt.colorbar(lin, location='right')
+    plt.show()
+    
+    
+    tra_max = torch.max(model_weights['output_net.6.weight'])
+    tra_min = torch.min(model_weights['output_net.6.weight'])
+    tra_norm = (model_weights['output_net.6.weight'] - tra_min) / (tra_max-tra_min)
+    
+    transf = plt.imshow(tra_norm, cmap='grey')
+    plt.colorbar(transf, location='right')
+    plt.show()

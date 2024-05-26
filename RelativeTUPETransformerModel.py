@@ -174,7 +174,7 @@ class TransformerEncoder(nn.Module):
 ################################# Transformer #################################
 import torch.nn as nn
 
-# https://gist.github.com/huchenxucs/c65524185e8e35c4bcfae4059f896c16
+#https://huggingface.co/transformers/v3.2.0/_modules/transformers/modeling_t5.html
 class RelativePositionBias(nn.Module):
     def __init__(self, bidirectional=True, num_buckets=32, max_distance=128, n_heads=8):
         super(RelativePositionBias, self).__init__()
@@ -183,7 +183,7 @@ class RelativePositionBias(nn.Module):
         self.max_distance = max_distance
         self.n_heads = n_heads
         self.relative_attention_bias = nn.Embedding(self.num_buckets, self.n_heads)
-        
+
     @staticmethod
     def _relative_position_bucket(relative_position, bidirectional=True, num_buckets=32, max_distance=128):
         """
@@ -203,8 +203,8 @@ class RelativePositionBias(nn.Module):
         n = -relative_position
         if bidirectional:
             num_buckets //= 2
-            ret += (torch.tensor(n) < 0).to(torch.long) * num_buckets  
-            n = torch.abs(torch.tensor(n))
+            ret += (n.clone().detach() < 0).to(torch.long) * num_buckets  
+            n = torch.abs(n.clone().detach())
         else:
             n = torch.max(n, torch.zeros_like(n))
         # now n is in the range [0, inf)
@@ -236,6 +236,7 @@ class RelativePositionBias(nn.Module):
         rp_bucket = rp_bucket.to(self.relative_attention_bias.weight.device)
         values = self.relative_attention_bias(rp_bucket)  # shape (qlen, klen, num_heads)
         values = values.permute([2, 0, 1]).unsqueeze(0)  # shape (1, num_heads, qlen, klen)
+        
         return values
 
     def forward(self, qlen, klen):

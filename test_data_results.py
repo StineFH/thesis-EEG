@@ -43,13 +43,12 @@ def getData(testSize, path,
 
 ############################### Get MSE and MAE ###############################
 
-
-def getTestResults(model_d, n_layer, beforePts, afterPts, targetPts, 
-                   models_to_run, neptune_names,
+def getTestResults(beforePts, afterPts, targetPts, 
+                   models_to_run, neptune_names, model_d=None, n_layer=None,
                    CH_ds_test=None, CH_dl_test=None,ds_test=None, dl_test=None):
     MAE_MSE_ALL = {}    
     
-    for r in range(10):
+    for r in range(1):
         print("This is round: ", r)
         
         channelIds=[1,19,23]
@@ -224,10 +223,27 @@ def getTestResults(model_d, n_layer, beforePts, afterPts, targetPts,
                     input_dropout=0.2,
                     mask = None,
                     only_before=False)
+            elif m == 'CH-Linear':
+                from ChannelLinearModel import ChiIndLinearTransformer
+                model = ChiIndLinearTransformer(
+                    context_size=beforePts+afterPts, 
+                    patch_size=64,
+                    step = 64,
+                    output_dim=targetPts,
+                    model_dim=64*2,
+                    num_heads = 16,
+                    num_layers = 3,
+                    lr=0.001,
+                    warmup=warmup,
+                    max_iters=max_iters,
+                    dropout=0.2,
+                    input_dropout=0.2,
+                    mask = None,
+                    only_before=False) 
             
             model.load_state_dict(torch.load(model_path + n + '.pt'))
             
-            if m == 'CH-Indp':
+            if m == 'CH-Indp' or m == 'CH-Linear':
                 
                 pred_error = []
                 iter_dl_test = iter(CH_dl_test)
@@ -235,23 +251,39 @@ def getTestResults(model_d, n_layer, beforePts, afterPts, targetPts,
                     if i % 10 == 0: print("Calculating Prediction Error for Batch no: ", i)
                     x, y = next(iter_dl_test)
                     pred = model(x) 
+                    # For channels 
+                    # B, C, NP = y.shape
+                    # pred = pred.reshape(B,C, NP)
+                    # pred_er = abs(pred-y)
+                    # pred_error.append(pred_er.detach()) 
+                    
+                    # For normal 
                     B, C, NP = y.shape
                     y = y.reshape(B*C, NP)
                     pred_er = abs(pred-y)
                     pred_error.append(pred_er.detach()) # Add mean predicion over samples 
                 
-                abs_pred_error = torch.cat(list(map(torch.tensor, pred_error)), dim=0)
+                #By Channel
+                abs_pred_error = torch.cat(list(map(lambda x: x.clone().detach(), pred_error)), dim=0)
+                # MSE = torch.mean(torch.mean(torch.square(abs_pred_error), dim=0), dim=1) # Overall 
+                # MAE = torch.mean(abs_pred_error, dim=0)
+                # torch.save(MAE, './transformer_prediction_error/' + n + '.pt')
+                # MAE = torch.mean(MAE, dim=1)
+                
+                # Normal 
                 MSE = torch.mean(torch.mean(torch.square(abs_pred_error), dim=0)) # Overall 
                 MAE = torch.mean(abs_pred_error, dim=0)
+                torch.save(MAE, './transformer_prediction_error/' + n + '.pt')
+                MAE = torch.mean(MAE)
                 
                 print("THIS IS m", m+n)
-                MAE_MSE[m + n] = {'MAE':float((sum(MAE)/len(MAE)).detach().numpy()), 
-                                  'MSE': float(MSE.detach().numpy())}
+                MAE_MSE[m + n] = {'MAE':float(MAE), 
+                                  'MSE': float(MSE)}
                 print("MAE and MSE: ", MAE_MSE[m+n]) 
             
             else: 
                 ds_test, dl_test = getData(testSize, path, beforePts, afterPts, targetPts, 
-                                  channelIds, sessionIds,CH=False)
+                                  channelIds, sessionIds, CH=False)
                 pred_error = []
                 iter_dl_test = iter(dl_test)
                 for i in range(int(testSize/10000)):
@@ -272,7 +304,7 @@ def getTestResults(model_d, n_layer, beforePts, afterPts, targetPts,
                 print("MAE and MSE: ", MAE_MSE[m+n])
         
         MAE_MSE_ALL[r] = MAE_MSE 
-    with open('./test_plots/MAE_MSE_model_sizes_all_small.json', 'w') as fp:
+    with open('./test_plots/MAE_MSE_biggest_model.json', 'w') as fp:
         json.dump(MAE_MSE_ALL, fp)
         
 
@@ -282,13 +314,14 @@ if __name__ == '__main__':
     beforePts=512
     afterPts=512
     targetPts=96
-    models_to_run = ['CH-Indp']*5
-    neptune_names = ['THES-89', 'THES-90', 'THES-91', 'THES-92', 'THES-93']
+    models_to_run = ['CH-Indp', 'CH-Indp', 'CH-Indp']
+    neptune_names = ['THES-118', 'THES-119', 'THES-122']
     
-    model_d = [16, 64, 64*2, 64*3, 64*4]
-    n_layer = [1, 2, 3, 3*2, 3*5]
-    getTestResults(model_d, n_layer, beforePts, afterPts, targetPts, 
-                   models_to_run, neptune_names)
+    model_d = [64*4, 64*4, 64*4]
+    n_layer = [3*5, 3*5, 3*5]
+    getTestResults(beforePts, afterPts, targetPts, 
+                   models_to_run, neptune_names, 
+                   model_d = model_d, n_layer=n_layer)
     
 
 
