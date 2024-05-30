@@ -80,6 +80,16 @@ percentDifference(7.075584411621094, 7.074428558349609)
 percentDifference(5.516302585601807, 8.59657096862793) 
 percentDifference(8.824179649353027, 8.59657096862793) 
 
+# Varying target MAE;MSE
+percentDifference(7.65, 8.25) ; percentDifference(116.88, 142.62)
+percentDifference(9.30, 10.34) ; percentDifference(176.98, 228.80)
+percentDifference(10.14, 11.18) ; percentDifference(213.91, 267.56)
+
+# CH-Linear 
+percentDifference(7.65, 7.44) ; percentDifference(116.88, 113.50)
+percentDifference(8.25, 7.44) ; percentDifference(142.62, 113.50)
+
+
 ############################ Sampling rate ############################
 # B x C x P x L5  
 t = torch.tensor([[[[1, 1, 1, 1, 1]],

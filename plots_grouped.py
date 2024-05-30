@@ -23,7 +23,6 @@ afterPts=512
 targetPts=96
 channelIds=[1, 19, 23]
 sessionIds=['001', '002', '003', '004']
-width = 345
 
 tex_fonts = {
     # Use LaTeX to write all text
@@ -167,8 +166,7 @@ def get_model(m, n, beforePts, afterPts, targetPts):
             warmup=warmup,
             max_iters=max_iters,
             dropout=0.2,
-            input_dropout=0.2,
-            mask = None) 
+            input_dropout=0.2) 
     elif m == 'ALiBi':
         from ALiBiTUPETransformerModel import ALiBiTransformer
         model = ALiBiTransformer(
@@ -201,7 +199,6 @@ def get_model(m, n, beforePts, afterPts, targetPts):
             max_iters=max_iters,
             dropout=0.2,
             input_dropout=0.2,
-            mask = None,
             only_before=False) 
     elif m == 'Ch-Linear':
         from ChannelLinearModel import ChiIndLinearTransformer
@@ -256,7 +253,7 @@ def getData(path,  beforePts, afterPts, targetPts, channelIds, sessionIds,
 
 def MAE_grouped_plot(filenames, labels, save, channels = False):
     if channels: 
-        fig, ax = plt.subplots(1, 1, figsize=set_size(width, fraction=0.75))
+        fig, ax = plt.subplots(1, 1, figsize=set_size(width, fraction=0.80))
         plt.rcParams.update(tex_fonts)
         colors = {0: '#004488', 1: '#BB5566', 2: '#CCBB44'}
         MAE = torch.load("./transformer_prediction_error/" + 'channnels' + filenames + '.pt')
@@ -266,29 +263,36 @@ def MAE_grouped_plot(filenames, labels, save, channels = False):
                     label=labels[i], color = colors[i])
         # plt.legend(title = "Channel", loc='center', bbox_to_anchor=(0.5, 0.21),
         #              ncol=2, fancybox=True, shadow=False)
-        plt.legend(title = "Channel", loc='center right', bbox_to_anchor=(1.24, 0.5),
+        plt.legend(title = "Channel", loc='center right', bbox_to_anchor=(1.18, 0.5),
                       ncol=1, fancybox=True, shadow=False)
 
     else: 
         fig, ax = plt.subplots(1, 1, figsize=set_size(width, fraction=0.85))
         plt.rcParams.update(tex_fonts)
         colors = {0: '#004488', 9: '#BB5566', 10: '#CCBB44', 'others': '#BBBBBB'}
+        # colors = {0: '#66CCEE', 1: '#4477AA', 2: '#228833', 
+        #           3: '#CCBB44', 4:'#EE6677', 5 : '#AA3377'}
         for i in range(len(filenames)):
             MAE = torch.load("./transformer_prediction_error/" + 'MAE-' + filenames[i] + '.pt')
+            # MAE = torch.load("./transformer_prediction_error/" + filenames[i] + '.pt')
+            print(i, "MAE: ", torch.mean(MAE))
             dist_from_known = range(1, len(MAE)+1) 
             if i in [0, 9, 10]:
-                ax.plot(dist_from_known, MAE, label=labels[i], color = colors[i],
-                        alpha=0.5)
+                ax.plot(dist_from_known, MAE, label=labels[i], color = colors[i], alpha =0.6)
             else: 
                 ax.plot(dist_from_known, MAE, label=labels[i], 
-                         color = colors['others'], alpha=0.4)
+                          color = colors['others'], alpha=0.4)
+            
+            # MAE varying targets
+            # ax.plot(dist_from_known, MAE,label=labels[i], color = colors[i], 
+            #         alpha=0.8)
         
-        # plt.legend(loc='upper center', bbox_to_anchor=(0.5, 1.84),
-        #             ncol=2, fancybox=True, shadow=False)
-        plt.legend(loc='center right', bbox_to_anchor=(1.4, 0.5),
+        # plt.legend(loc='upper center', bbox_to_anchor=(0.5, 1.2),
+        #             ncol=3, fancybox=True, shadow=False)
+        plt.legend(loc='center right', bbox_to_anchor=(1.28, 0.5),
                     ncol=1, fancybox=True, shadow=False)
-        # plt.legend(loc='center right', bbox_to_anchor=(2.24, 0.5),
-        #             ncol=2, fancybox=True, shadow=False)
+    # plt.grid(axis='y', alpha = 0.6)
+    # plt.grid(axis='x', alpha = 0.6)
     plt.title('')
     plt.xlabel('Distance from last point before target')
     plt.xticks(list(dist_from_known[::10]))
@@ -397,10 +401,9 @@ def createAllPredictionPlots(file_name, models, n, CH_dl_test_one):
         
         for c in range(3): # Making a plot for each channel 
             plt.rcParams.update(tex_fonts)
-            fig, ax = plt.subplots(1, 1, figsize=set_size(width, fraction=0.60))
+            fig, ax = plt.subplots(1, 1, figsize=set_size(width, fraction=1.5))
         
             for j in range(len(models)):
-                print(models[j])
                 if models[j] == 'CH-Indp':
                     model = get_model(models[j], n[j], beforePts, afterPts, targetPts)
                     pred = model(x) 
@@ -427,7 +430,7 @@ def createAllPredictionPlots(file_name, models, n, CH_dl_test_one):
             plt.title('Predicted and target EEG')
             plt.xlabel('Time [samples]')
             plt.ylabel(r'Signal [$\mu V$]')
-            # plt.legend()
+            plt.legend()
             if file_name: 
                 fig.savefig('./test_plots/' + file_name + str(i) + '_' +str(c) + '.png', 
                             format='png', bbox_inches='tight')
@@ -439,19 +442,25 @@ def createThePredictionPlots(file_name, models, n, CH_dl_test_one):
     targetPts = 96
     data_iter = iter(CH_dl_test_one)  
     
-    colors = {0: '#DDAA33', 1: '#BB5566', 2:'#004488'}
-    c = [2, 2, 1, 0]
+    colors = {0: '#DDAA33', 1: '#BB5566', 2:'#004488', 3:'#228833'}
+    c = [0, 0] # Channel number 
     plot_num = -1
-    fig, axs = plt.subplots(2, 2, sharex =True,constrained_layout = True,
-                            figsize=set_size(width, fraction=1.15, subplots=(2, 2)))
+    fig, axs = plt.subplots(2, 1, sharex =True,constrained_layout = True,
+                            figsize=set_size(width, fraction=0.90, subplots=(2, 1)))
     
     plt.rcParams.update(tex_fonts)    
     for i in range(30): # Number of different data points
         x, y = next(data_iter)      
-        if i in [2, 8, 9, 27]:
+        if i in [2, 18]: # sample number 
             plot_num += 1
             for j in range(len(models)):
                 if models[j] == 'CH-Indp':
+                    model = get_model(models[j], n[j], beforePts, afterPts, targetPts)
+                    pred = model(x) 
+                    
+                    axs.flat[plot_num].plot(range(1, targetPts+1), pred[c[plot_num],:].detach().numpy(),
+                             color = colors[j+1],label=models[j])
+                elif models[j] == 'Ch-Linear':
                     model = get_model(models[j], n[j], beforePts, afterPts, targetPts)
                     pred = model(x) 
                     
@@ -468,51 +477,57 @@ def createThePredictionPlots(file_name, models, n, CH_dl_test_one):
             print("Plot", plot_num, str(i) + '_' + str(c[plot_num]))
             axs.flat[plot_num].plot(range(1, targetPts+1), y[0,c[plot_num],:].detach().numpy(), 
                           label='Target', color = colors[0])
-    plt.setp(axs.flat[[1, 3]], xticks=range(1, targetPts+1, 15))
+    plt.setp(axs.flat[[1]], xticks=range(1, targetPts+1, 15))
     fig.suptitle('Predicted and target EEG')
     fig.supxlabel('Time [samples]')
     fig.supylabel(r'Signal [$\mu V$]')
-    handles, labels = axs.flat[3].get_legend_handles_labels()
-    # fig.legend(handles, labels, loc='center right', bbox_to_anchor=(1.2, 0.5),
-    #             ncol=1, fancybox=True, shadow=False)
-    fig.legend(handles, labels, loc='center right', bbox_to_anchor=(1.06, 0.91),
+    handles, labels = axs.flat[1].get_legend_handles_labels()
+    # fig.legend(handles, labels, loc='center', bbox_to_anchor=(0.5, 1.05),
+                # ncol=4, fancybox=True, shadow=False)
+    fig.legend(handles, labels, loc='center right', bbox_to_anchor=(0.95, 0.65),
                 ncol=1, fancybox=True, shadow=False)
-    # plt.tight_layout()
-    fig.savefig('./test_plots/' + 'Prediction_plots2' + '.pdf',
+    fig.savefig('./test_plots/' + 'Prediction_plots_chLinear2' + '.pdf',
                 format='pdf', bbox_inches='tight')
     plt.show()
 
 
 if __name__ == '__main__':
 
-    # filenames = ['THES-71',
-    #               'THES-70',
-    #               'THES-72',
-    #               'THES-73',
-    #               'THES-74',
-    #               'THES-75',
-    #               'THES-76',
-    #               'THES-77',
-    #               'THES-78',
-    #               'THES-83',
-    #               'THES-117']
-    # labels = ['Linear',
-    #           'MSE',
-    #           'L1',
-    #           'LogCosh',
-    #           'Overlapping',
-    #           'TUPE-A',
-    #           'TUPE-ALiBi',
-    #           'TUPE-R',
-    #           'ALiBi',
-    #           'Ch-Indp', 
-    #           'Ch-Linear']
+    filenames = ['THES-71',
+                'THES-70',
+                'THES-72',
+                'THES-73',
+                'THES-74',
+                'THES-75',
+                'THES-76',
+                'THES-77',
+                'THES-78',
+                'THES-83',
+                #'THES-117'
+                ]
+    labels = ['Linear',
+                'MSE',
+                'L1',
+                'LogCosh',
+                'Overlapping',
+                'TUPE-A',
+                'TUPE-ALiBi',
+                'TUPE-R',
+                'ALiBi',
+              'Ch-Indp', 
+              #'Ch-Linear'
+              ]
     
-    labels = ['1','19','23']
-    filenames = 'THES-117'
+    # labels = ['1','19','23']
+    # filenames = 'THES-83'
+    
+    # labels = ['CH-96','CH-192','CH-336',
+    #           'Linear-96','Linear-192','Linear-336']
+    # filenames = ['MAE-THES-83', 'THES-123', 'THES-125',
+    #               'MAE-THES-71', 'THES-124', 'THES-126']
     
     # Get MAE plot over points for all the models in one plot 
-    MAE_grouped_plot(filenames, labels, 'MAE_channels_117', channels = True)
+    MAE_grouped_plot(filenames, labels, 'MAE_117', channels = False)
     
     ############################### MODEL SIZES ################################
     
@@ -540,12 +555,12 @@ if __name__ == '__main__':
     
     models = ['CH-Indp',
               'Linear',
-              'Ch-Linear'
+              'TUPE-R'
               
               ]
     n = ['THES-83',
           'THES-71',
-          'THES-117'
+          'THES-77'
           ]
     
     # createThePredictionPlots('predictions_', models, n, CH_dl_test_one)
@@ -554,32 +569,48 @@ if __name__ == '__main__':
 
 
     ############################ Visualize Weights ############################
-    model = get_model('Ch-Linear', 'THES-117', 512, 512, 96)
+    model = get_model('Linear', 'THES-71', 512, 512, 96)
 
-    model_weights = model.state_dict().keys()
+    model_weights = model.state_dict()
     model_weights['linearModel.weight'].shape
     model_weights['output_net.6.weight'].shape
 
-    lin_max = torch.max(model_weights['linearModel.weight'])
-    lin_min = torch.min(model_weights['linearModel.weight'])
-    lin_norm = (model_weights['linearModel.weight'] - lin_min) / (lin_max-lin_min)
-    torch.max(lin_norm[:,45:50])
-    torch.min(lin_norm[:,45:50])
-    torch.median(lin_norm[:,45:50])
+    # Linear 
+    lin_max = torch.max(model_weights['linear_regression.linear.weight'])
+    lin_min = torch.min(model_weights['linear_regression.linear.weight'])
+    lin_norm = (model_weights['linear_regression.linear.weight'] - lin_min) / (lin_max-lin_min)
     
-    lin = plt.imshow(lin_norm[:,450:550], norm = None)
-    plt.colorbar(lin, location='right')
+    #CH-Linear
+    # lin_max = torch.max(model_weights['linearModel.weight'])
+    # lin_min = torch.min(model_weights['linearModel.weight'])
+    # lin_norm = (model_weights['linearModel.weight'] - lin_min) / (lin_max-lin_min)
+    # torch.max(lin_norm[:,45:50])
+    # torch.min(lin_norm[:,45:50])
+    # torch.median(lin_norm[:,45:50])
+    
+    # Visualize Linear model weights
+    fig, (ax1, ax2) = plt.subplots(2, 1, sharex =True,constrained_layout = True,
+                            figsize=(4.5, 3.6))
+    
+    plt.rcParams.update(tex_fonts)  
+    lin1 = ax1.imshow(lin_norm[:,0:512], norm = None, cmap='grey')
+    plt.colorbar(lin1, location='top')
+    lin2 = ax2.imshow(lin_norm[:,512:], norm = None, cmap='grey')
+    plt.colorbar(lin2, location='top')
+    fig.suptitle('Normalized weights of the Linear model')
+    plt.setp(ax1, yticks=range(1, targetPts+1, 30))
+    plt.setp(ax2, yticks=range(1, targetPts+1, 30))
+    fig.savefig('./test_plots/' + 'weights_Linear' + '.pdf',
+                format='pdf', bbox_inches='tight')
     plt.show()
     
-    lin = plt.imshow(lin_norm[:,(1024-96):1024], norm = None)
-    plt.colorbar(lin, location='right')
-    plt.show()
+
     
     
-    tra_max = torch.max(model_weights['output_net.6.weight'])
-    tra_min = torch.min(model_weights['output_net.6.weight'])
-    tra_norm = (model_weights['output_net.6.weight'] - tra_min) / (tra_max-tra_min)
+    # tra_max = torch.max(model_weights['output_net.6.weight'])
+    # tra_min = torch.min(model_weights['output_net.6.weight'])
+    # tra_norm = (model_weights['output_net.6.weight'] - tra_min) / (tra_max-tra_min)
     
-    transf = plt.imshow(tra_norm, cmap='grey')
-    plt.colorbar(transf, location='right')
-    plt.show()
+    # transf = plt.imshow(tra_norm, cmap='grey')
+    # plt.colorbar(transf, location='right')
+    # plt.show()

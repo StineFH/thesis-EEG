@@ -48,7 +48,7 @@ def getTestResults(beforePts, afterPts, targetPts,
                    CH_ds_test=None, CH_dl_test=None,ds_test=None, dl_test=None):
     MAE_MSE_ALL = {}    
     
-    for r in range(1):
+    for r in range(9):
         print("This is round: ", r)
         
         channelIds=[1,19,23]
@@ -304,7 +304,7 @@ def getTestResults(beforePts, afterPts, targetPts,
                 print("MAE and MSE: ", MAE_MSE[m+n])
         
         MAE_MSE_ALL[r] = MAE_MSE 
-    with open('./test_plots/MAE_MSE_biggest_model.json', 'w') as fp:
+    with open('./test_plots/MAE_MSE_biggest_model_more.json', 'w') as fp:
         json.dump(MAE_MSE_ALL, fp)
         
 

@@ -64,7 +64,7 @@ class TUPEMultiheadAttention(nn.Module):
         nn.init.xavier_uniform_(self.Wo_proj.weight)
         nn.init.xavier_uniform_(self.UqUk_proj.weight)
         
-    def forward(self, x, PE, PE_r):
+    def forward(self, x, PE, PE_r, return_attn_weights = False):
         """
         Take in query, key, value i.e. x, x, x. 
         Return:  Tuple(tensor, optional(tensor))
@@ -109,7 +109,10 @@ class TUPEMultiheadAttention(nn.Module):
         values = values.reshape(batch_size, patch_length, self.num_heads*q.size()[-1])
         Wo = self.Wo_proj(values)
 
-        return Wo
+        if return_attn_weights: # Return attn weights e.g. for attention maps
+            return Wo, attention
+        else:
+            return Wo
 
 
 class EncoderBlock(nn.Module):
@@ -139,7 +142,7 @@ class EncoderBlock(nn.Module):
         self.norm2 = nn.LayerNorm(embed_dim)
         self.dropout = nn.Dropout(dropout)
 
-    def forward(self, x, PE, PE_r, mask=None):
+    def forward(self, x, PE, PE_r):
         # Attention part
         attn_out = self.TUPE_attn(x, PE, PE_r)
         x = x + self.dropout(attn_out)
@@ -157,19 +160,23 @@ class TransformerEncoder(nn.Module):
         super().__init__()
         self.layers = nn.ModuleList([EncoderBlock(**block_args) for _ in range(num_layers)])
 
-    def forward(self, x, PE, PE_r, mask=None):
+    def forward(self, x, PE, PE_r):
         for layer in self.layers:
-            x = layer(x, PE, PE_r, mask=mask)
+            x = layer(x, PE, PE_r)
         return x
 
-    def get_attention_maps(self, x, PE, PE_r, mask=None):
+    def get_attention_maps(self, x, PE, PE_r, average_attn_weights=True):
         attention_maps = []
         for idx, layer in enumerate(self.layers):
-            print("Going into layer ", idx, "in TransformerEncoder")
-            _, attn_map = layer.self_attn(x, PE, PE_r, mask=mask, return_attention=True)
+            _, attn_map = layer.TUPE_attn(x, PE, PE_r, return_attn_weights=True)
             attention_maps.append(attn_map)
-            x = layer(x)
-        return attention_maps
+            x = layer(x, PE, PE_r)
+            
+        if average_attn_weights:
+            attn_new = torch.stack(attention_maps, dim=0)
+            return torch.mean(attn_new, dim=2) # Return avereage over heads 
+        else: 
+            return attention_maps
 
 ################################# Transformer #################################
 import torch.nn as nn
@@ -284,8 +291,7 @@ class RelativeTUPETransformer(pl.LightningModule):
         warmup=100,
         max_iters=1000,
         dropout=0.0,
-        input_dropout=0.0,
-        mask = None
+        input_dropout=0.0
     ):
         super().__init__()
         self.save_hyperparameters()
@@ -332,14 +338,14 @@ class RelativeTUPETransformer(pl.LightningModule):
             )
         
     @torch.no_grad()
-    def get_attention_maps(self, x, mask=None, add_positional_encoding=True):
+    def get_attention_maps(self, x, average_attn_weights=True):
         """Function for extracting the attention matrices of the whole Transformer for a single batch.
         Input arguments same as the forward pass.
         """
         x = self.input_net(x)
-        if add_positional_encoding:
-            x = self.positional_encoding(x)
-        attention_maps = self.transformer.get_attention_maps(x, mask=mask)
+        PE = self.positional_encoding(x)
+        PE_r = self.R_PE(self.patches, self.patches)
+        attention_maps = self.transformer.get_attention_maps(x,PE, PE_r, average_attn_weights=average_attn_weights)
         return attention_maps
 
     def configure_optimizers(self):
@@ -377,7 +383,7 @@ class RelativeTUPETransformer(pl.LightningModule):
         
         #forward pass
         x = self.input_net(x)
-        x = self.transformer(x, PE, PE_r, mask=self.hparams.mask) # Might need to do something different with mask 
+        x = self.transformer(x, PE, PE_r) # Might need to do something different with mask 
         x=self.output_net(x)
 
         return x

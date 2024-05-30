@@ -43,28 +43,30 @@ def getData(testSize, path,
 ############################### Get MSE and MAE ###############################
 
 
-def getTestResults(model_d, n_layer, beforePts, afterPts, targetPts, 
+def getTestResults(beforePts, afterPts, targetPts, 
                    models_to_run, neptune_names,
                    CH_ds_test=None, CH_dl_test=None,ds_test=None, dl_test=None):
     MAE_MSE_ALL = {}    
     
-    for r in range(10):
+    for r in range(1):
         print("This is round: ", r)
         
         channelIds=[1,19,23]
         testSize = 625000
         sessionIds = ['001', '002', '003', '004']
-        
-        CH_ds_test, CH_dl_test = getData(testSize, path, beforePts, afterPts, 
-                                         targetPts,channelIds, sessionIds, 
-                                         CH=True)
-        
+    
         MAE_MSE = {}
         for i, (m, n) in enumerate(zip(models_to_run, neptune_names)):
             if m == "linear_model":
                 model_path = './linear_model_snapshot/'
+                CH_ds_test, CH_dl_test = getData(testSize, path, beforePts, afterPts, 
+                                                 targetPts[i],channelIds, sessionIds, 
+                                                 CH=False)
             else:
                 model_path = './transformer_model_snapshot/'
+                CH_ds_test, CH_dl_test = getData(testSize, path, beforePts, afterPts, 
+                                                 targetPts[i],channelIds, sessionIds, 
+                                                 CH=True)
             
             warmup=6250
             max_iters=188000
@@ -73,7 +75,7 @@ def getTestResults(model_d, n_layer, beforePts, afterPts, targetPts,
                 from LinearModel import linearModel
                 model = linearModel(0.001,
                                         beforePts+afterPts, 
-                                        targetPts, 
+                                        targetPts[i], 
                                         warmup=warmup, 
                                         max_iters=max_iters) 
             
@@ -212,10 +214,10 @@ def getTestResults(model_d, n_layer, beforePts, afterPts, targetPts,
                     context_size=beforePts+afterPts, 
                     patch_size=64,
                     step = 64,
-                    output_dim=targetPts,
-                    model_dim=model_d[i],
+                    output_dim=targetPts[i],
+                    model_dim=64*2,
                     num_heads = 16,
-                    num_layers = n_layer[i],
+                    num_layers = 3,
                     lr=0.001,
                     warmup=warmup,
                     max_iters=max_iters,
@@ -242,6 +244,7 @@ def getTestResults(model_d, n_layer, beforePts, afterPts, targetPts,
                 abs_pred_error = torch.cat(list(map(torch.tensor, pred_error)), dim=0)
                 MSE = torch.mean(torch.mean(torch.square(abs_pred_error), dim=0)) # Overall 
                 MAE = torch.mean(abs_pred_error, dim=0)
+                torch.save(MAE, './transformer_prediction_error/' + n + '.pt')
                 
                 print("THIS IS m", m+n)
                 MAE_MSE[m + n] = {'MAE':float((sum(MAE)/len(MAE)).detach().numpy()), 
@@ -249,8 +252,6 @@ def getTestResults(model_d, n_layer, beforePts, afterPts, targetPts,
                 print("MAE and MSE: ", MAE_MSE[m+n]) 
             
             else: 
-                ds_test, dl_test = getData(testSize, path, beforePts, afterPts, targetPts, 
-                                  channelIds, sessionIds,CH=False)
                 pred_error = []
                 iter_dl_test = iter(dl_test)
                 for i in range(int(testSize/10000)):
@@ -261,9 +262,9 @@ def getTestResults(model_d, n_layer, beforePts, afterPts, targetPts,
                     pred_error.append(pred_er.detach()) # Add mean predicion over samples 
                 
                 abs_pred_error = torch.cat(list(map(torch.tensor, pred_error)), dim=0)
-                
                 MSE = torch.mean(torch.mean(torch.square(abs_pred_error), dim=0)) # Overall 
                 MAE = torch.mean(abs_pred_error, dim=0)
+                torch.save(MAE, './transformer_prediction_error/' + n + '.pt')
                 
                 print("THIS IS", m+n)
                 MAE_MSE[m+n] = {'MAE':float((sum(MAE)/len(MAE)).detach().numpy()), 
@@ -271,7 +272,7 @@ def getTestResults(model_d, n_layer, beforePts, afterPts, targetPts,
                 print("MAE and MSE: ", MAE_MSE[m+n])
         
         MAE_MSE_ALL[r] = MAE_MSE 
-    with open('./test_plots/MAE_MSE_model_sizes_all_big.json', 'w') as fp:
+    with open('./test_plots/MAE_MSE_varying_targets_all.json', 'w') as fp:
         json.dump(MAE_MSE_ALL, fp)
         
 
@@ -280,11 +281,10 @@ if __name__ == '__main__':
     path = '/data/'
     beforePts=512
     afterPts=512
-    targetPts=96
-    models_to_run = ['CH-Indp']*5
-    neptune_names = ['THES-94', 'THES-95', 'THES-96', 'THES-97', 'THES-98']
+    targetPts = [192, 336, 192, 336]
     
-    model_d = [16, 64, 64*2, 64*3, 64*4]
-    n_layer = [1, 2, 3, 3*2, 3*5]
-    getTestResults(model_d, n_layer, beforePts, afterPts, targetPts, 
+    models_to_run = ['CH-Indp', 'CH-Indp', "linear_model", "linear_model"]
+    neptune_names = ['THES-123', 'THES-125', 'THES-124', 'THES-126']
+
+    getTestResults(beforePts, afterPts, targetPts, 
                    models_to_run, neptune_names)
