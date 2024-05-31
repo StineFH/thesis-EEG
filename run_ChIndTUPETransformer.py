@@ -62,11 +62,10 @@ def runExperiment(
         bidsPath = tempPath
         
     subjectIds=mb.get_entity_vals(bidsPath,'subject', with_key=False)
-    trainIds=subjectIds.copy()#[6:]
-    valIds = subjectIds.copy()#[3:6]
-
-    trainPaths=du.returnFilePaths(bidsPath,trainIds,sessionIds=['001', '002']) # There is onlyone session in small dataset
-    valPaths=du.returnFilePaths(bidsPath,valIds,sessionIds=['003'])
+    trainIds=subjectIds.copy()[6:]
+    valIds = subjectIds.copy()[3:6]
+    trainPaths=du.returnFilePaths(bidsPath,trainIds,sessionIds=sessionIds) # There is onlyone session in small dataset
+    valPaths=du.returnFilePaths(bidsPath,valIds,sessionIds=sessionIds)
     
     
     print('Loading training data')
@@ -123,7 +122,6 @@ def runExperiment(
         max_iters=max_iters,
         dropout=0.2,
         input_dropout=0.2,
-        mask = None,
         only_before=False) 
     early_stopping = EarlyStopping(monitor="val_loss", min_delta=0.00,
                                    patience=25, verbose=False, mode="min")
@@ -165,11 +163,11 @@ afterPts=512
 patch_size = 64
 step = 64
 
-sessionIds = ['001', '002', '003', '004'] # i-e. only about half the data in EESM19
+sessionIds = ['001', '002', '003', '004'] 
 limit = 625000 #1875000*(1/3) # Validation dataset size
 train_size = 2083333 #6250000*(1/3) # Train dataset size 
 batchSize= 3333 # 10000*(1/3)
-channelIdxs=[1,19,23]
+channelIdxs=list(range(0, 25))
 valSub=0
 max_iters = 188000
 max_epochs = 300

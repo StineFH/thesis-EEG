@@ -129,10 +129,30 @@ t_re.reshape(2, 3, 1, 5)
 
 import mne
 bidsPath = 'Y:\\NTdata\\BIDS\\EESM19\\derivatives\\cleaned_1\\'
-file_path = 'Y:/NTdata/BIDS/EESM19/derivatives/cleaned_1/sub-004/ses-001/eeg/sub-004_ses-001_task-sleep_acq-PSG_desc-cleaned1_eeg.set'
-tempRaw=mne.io.read_raw_eeglab(file_path,preload=True,verbose=False)
+paths=du.returnFilePaths(bidsPath,subjectIds[6:],sessionIds=['001', '002', '003', '004'])
 
+n_times = []
+seconds = []
+
+for f in paths:
+    tempRaw=mne.io.read_raw_eeglab(f, preload=True,verbose=False)
+    n_times.append(tempRaw.n_times)
+    seconds.append(tempRaw.times[-1])
+    print(tempRaw)
+    
+print(f'smallet series {min(n_times)}')
 tempRaw.info["sfreq"] #250
+
+"It is 7575975 datapoints meaning 30303.9 seconds "
+# 8282945 / 33131 # For training data 
+8282945*3*56 # length x channels used x files = 1987906800
+1987906800*3 # = 5,963,720,400
+#1,240,299,060
+6250000*(1024+96) # Number samples times length of context size and target
+# = 7,000,000,000
+
+tempRaw.drop_channels([0])
+
 
 """
 Full length: 

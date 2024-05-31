@@ -70,8 +70,7 @@ def get_model(m, n, beforePts, afterPts, targetPts):
             warmup=warmup,
             max_iters=max_iters,
             dropout=0.2,
-            input_dropout=0.2,
-            mask = None) 
+            input_dropout=0.2) 
     elif m == 'L1':
         from L1LossTransformerModel import Transformer
         model = Transformer(
@@ -326,7 +325,7 @@ def VaryingContextSizePlot(labels, save):
         fig.savefig('./test_plots/' + save + '.pdf', format='pdf', bbox_inches='tight')
     plt.show()
 
-def modelSizesPlot(S_filename, B_filename, labels, save_MAE=None, save_MSE=None):
+def modelSizesPlot(S_filename, B_filename, labels, save_MAE=None):
     layers = [1, 2, 3, 3*2, 3*5, 3*8]
     model_dim = [16, 64, 64*2, 64*3, 64*4]
     f = open('./test_plots/' + S_filename + '.json')
@@ -365,7 +364,7 @@ def modelSizesPlot(S_filename, B_filename, labels, save_MAE=None, save_MSE=None)
     # Make the MAE plot
     colors = {0: '#004488', 1: '#BB5566'}
     
-    fig, ax = plt.subplots(1, 1, figsize=set_size(width, fraction=0.6))
+    fig, ax = plt.subplots(1, 1, figsize=set_size(width, fraction=0.80))
     plt.rcParams.update(tex_fonts)
     x_axis = [str(d)+"/"+ str(l) for d, l in zip(model_dim, layers)]
     plt.plot(x_axis, MAE_S['MAE']['mean'], color = colors[0], label=labels[0])
@@ -535,8 +534,7 @@ if __name__ == '__main__':
     B_filename = 'MAE_MSE_model_sizes_all_big'
     labels = ['2M', '4M']
     modelSizesPlot(S_filename, B_filename, labels, 
-                   'MAE_loss_model_sizes',
-                   'MSE_loss_model_sizes')
+                   'MAE_loss_model_sizes2')
     
     ############################# Varying Context Size ##########################
     
@@ -569,7 +567,7 @@ if __name__ == '__main__':
 
 
     ############################ Visualize Weights ############################
-    model = get_model('Linear', 'THES-71', 512, 512, 96)
+    model = get_model('vanilla', 'THES-70', 512, 512, 96)
 
     model_weights = model.state_dict()
     model_weights['linearModel.weight'].shape

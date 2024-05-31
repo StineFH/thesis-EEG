@@ -37,7 +37,7 @@ def VisualizeAttentionMaps(model_name, nep_name, CH_dl_test_one,
     
     data_iter = iter(CH_dl_test_one) 
     
-    fig, axs = plt.subplots(6, 2, sharex='col', figsize=set_size(width, fraction=0.8, 
+    fig, axs = plt.subplots(6, 2, sharex='col', figsize=set_size(width, fraction=0.75, 
                                                   subplots=(6, 2)), layout ='constrained')
     plt.rcParams.update(tex_fonts)
     axes = axs.ravel()
@@ -145,16 +145,16 @@ def VisualizeAttentionMaps(model_name, nep_name, CH_dl_test_one,
         plt.show()
                     
         
+# path= 'Y:\\NTdata\\BIDS\\EESM19\\derivatives\\cleaned_1\\'
+# CH_dl_test_one = getData(path, 512, 512, 96, [1, 19, 23], ['001'], CH=True)
 
 
 nep_name = 'THES-83'
 model_name = 'CH-Indp'
 
-# path= 'Y:\\NTdata\\BIDS\\EESM19\\derivatives\\cleaned_1\\'
-# CH_dl_test_one = getData(path, 512, 512, 96, [1, 19, 23], ['001'], CH=True)
-
-
 VisualizeAttentionMaps(model_name, nep_name,CH_dl_test_one,'attention_maps_CH_Indp2')
+
+model = get_model('Linear', 'THES-71', 512, 512, 96)
 
 nep_name = 'THES-77'
 model_name = 'TUPE-R'
