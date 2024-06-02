@@ -1,3 +1,11 @@
+"""
+Non-TUPE multihead attention is inspired by: 
+    https://uvadlc-notebooks.readthedocs.io/en/latest/tutorial_notebooks/tutorial6/Transformers_and_MHAttention.html
+    
+Relative positional encoding is a slightly modified version of: 
+    https://huggingface.co/transformers/v3.2.0/_modules/transformers/modeling_t5.html
+"""
+
 # Standard libraries
 import math
 import numpy as np

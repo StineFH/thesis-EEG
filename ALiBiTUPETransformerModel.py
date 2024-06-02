@@ -1,3 +1,11 @@
+"""
+Non-TUPE multihead attention is inspired by: 
+    https://uvadlc-notebooks.readthedocs.io/en/latest/tutorial_notebooks/tutorial6/Transformers_and_MHAttention.html
+    
+Relative positional encoding is a slightly modified version of: 
+    https://huggingface.co/transformers/v3.2.0/_modules/transformers/modeling_t5.html
+"""
+
 # Standard libraries
 import math
 import numpy as np
@@ -234,7 +242,7 @@ class PositionalEncoding(nn.Module):
     def forward(self, x):
         return self.pe[:, : x.size(1)].repeat(x.size(0), 1, 1)
 
-#https://uvadlc-notebooks.readthedocs.io/en/latest/tutorial_notebooks/tutorial6/Transformers_and_MHAttention.html
+
 class ALiBiTransformer(pl.LightningModule):
     def __init__(
         self,
