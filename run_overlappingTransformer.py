@@ -117,8 +117,7 @@ def runExperiment(
         warmup=warmup,
         max_iters=max_iters,
         dropout=0.2,
-        input_dropout=0.2,
-        mask = None) 
+        input_dropout=0.2) 
     early_stopping = EarlyStopping(monitor="val_loss", min_delta=0.00,
                                    patience=25, verbose=False, mode="min")
     
