@@ -145,8 +145,8 @@ def VisualizeAttentionMaps(model_name, nep_name, CH_dl_test_one,
         plt.show()
                     
         
-# path= 'Y:\\NTdata\\BIDS\\EESM19\\derivatives\\cleaned_1\\'
-# CH_dl_test_one = getData(path, 512, 512, 96, [1, 19, 23], ['001'], CH=True)
+path= 'Y:\\NTdata\\BIDS\\EESM19\\derivatives\\cleaned_1\\'
+CH_dl_test_one = getData(path, 512, 512, 96, [1, 19, 23], ['001'], CH=True)
 
 
 nep_name = 'THES-83'

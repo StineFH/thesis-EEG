@@ -8,15 +8,11 @@ import json
 from fig_size_func import set_size
 
 import pandas as pd
-# abs_pred_error = torch.load("./transformer_prediction_error/"  + 'THES-90' + '.pt')
 
-# abs_pred_error = torch.cat(list(map(torch.tensor, abs_pred_error)), dim=0)
-# MSE = torch.mean(torch.mean(torch.square(abs_pred_error), dim=0)) # Overall 
-# MAE = torch.mean(abs_pred_error, dim=0)
 
 #Colors: #https://personal.sron.nl/~pault/#sec:qualitative
 
-width = 426.79134
+width = 426.79134 # Width of text in latex document
 
 beforePts=512
 afterPts=512
@@ -84,8 +80,7 @@ def get_model(m, n, beforePts, afterPts, targetPts):
             warmup=warmup,
             max_iters=max_iters,
             dropout=0.2,
-            input_dropout=0.2,
-            mask = None) 
+            input_dropout=0.2,) 
     elif m == 'LogCosh':
         from LogCoshLossTransformerModel import Transformer
         model = Transformer(
@@ -99,8 +94,7 @@ def get_model(m, n, beforePts, afterPts, targetPts):
             warmup=warmup,
             max_iters=max_iters,
             dropout=0.2,
-            input_dropout=0.2,
-            mask = None) 
+            input_dropout=0.2) 
     elif m == 'overlapping':
         from overlappingPatchesTransformer import OverlappingTransformer
         model = OverlappingTransformer(
@@ -115,8 +109,7 @@ def get_model(m, n, beforePts, afterPts, targetPts):
             warmup=warmup,
             max_iters=max_iters,
             dropout=0.2,
-            input_dropout=0.2,
-            mask = None) 
+            input_dropout=0.2) 
     elif m == 'TUPE-A':
         from TUPETransformerModel import TUPEOverlappingTransformer
         model = TUPEOverlappingTransformer(
@@ -132,7 +125,6 @@ def get_model(m, n, beforePts, afterPts, targetPts):
             max_iters=max_iters,
             dropout=0.2,
             input_dropout=0.2,
-            mask = None,
             only_before=False) 
     elif m == 'TUPE-ALiBi':
         from ALiBiTUPETransformerModel import ALiBiTransformer
@@ -149,7 +141,6 @@ def get_model(m, n, beforePts, afterPts, targetPts):
             max_iters=max_iters,
             dropout=0.2,
             input_dropout=0.2,
-            mask = None,
             TUPE = True) 
     elif m == 'TUPE-R':
         from RelativeTUPETransformerModel import RelativeTUPETransformer
@@ -181,7 +172,6 @@ def get_model(m, n, beforePts, afterPts, targetPts):
             max_iters=max_iters,
             dropout=0.2,
             input_dropout=0.2,
-            mask = None,
             TUPE = False)
     elif m == 'CH-Indp':
         from ChannelIndpTransformerModel import ChiIndTUPEOverlappingTransformer
@@ -214,7 +204,6 @@ def get_model(m, n, beforePts, afterPts, targetPts):
             max_iters=max_iters,
             dropout=0.2,
             input_dropout=0.2,
-            mask = None,
             only_before=False) 
         
     model.load_state_dict(torch.load(model_path + n + '.pt'))
@@ -603,12 +592,3 @@ if __name__ == '__main__':
     plt.show()
     
 
-    
-    
-    # tra_max = torch.max(model_weights['output_net.6.weight'])
-    # tra_min = torch.min(model_weights['output_net.6.weight'])
-    # tra_norm = (model_weights['output_net.6.weight'] - tra_min) / (tra_max-tra_min)
-    
-    # transf = plt.imshow(tra_norm, cmap='grey')
-    # plt.colorbar(transf, location='right')
-    # plt.show()

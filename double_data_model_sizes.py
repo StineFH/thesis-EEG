@@ -108,7 +108,6 @@ def runCurrentModel(model_dims, n_layers, dl_train, dl_val):
         max_iters=188000*2,
         dropout=0.2,
         input_dropout=0.2,
-        mask = None,
         only_before=False) 
     early_stopping = EarlyStopping(monitor="val_loss", min_delta=0.00,
                                    patience=25, verbose=False, mode="min")

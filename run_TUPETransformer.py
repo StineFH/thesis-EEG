@@ -156,7 +156,7 @@ targetPts=96
 beforePts=512
 afterPts=512
 patch_size = 64
-step = 32
+step = 64
 
 sessionIds = ['001', '002', '003', '004']
 limit = 1875000 # Validation dataset size

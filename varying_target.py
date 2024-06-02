@@ -106,7 +106,6 @@ def runCurrentModel(dl_train, dl_val, target):
         max_iters=188000,
         dropout=0.2,
         input_dropout=0.2,
-        mask = None,
         only_before=False) 
     early_stopping = EarlyStopping(monitor="val_loss", min_delta=0.00,
                                    patience=25, verbose=False, mode="min")

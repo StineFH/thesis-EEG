@@ -112,7 +112,7 @@ def runExperiment(
     transf_model = ChiIndTUPEOverlappingTransformer(
         context_size=beforePts+afterPts, 
         patch_size=patch_size,
-        step = int(patch_size/2),
+        step = step,
         output_dim=targetPts,
         model_dim=patch_size*2,
         num_heads = 16,
@@ -167,7 +167,7 @@ sessionIds = ['001', '002', '003', '004']
 limit = 625000 #1875000*(1/3) # Validation dataset size
 train_size = 2083333 #6250000*(1/3) # Train dataset size 
 batchSize= 3333 # 10000*(1/3)
-channelIdxs=list(range(0, 25))
+channelIdxs= [1, 19, 23]
 valSub=0
 max_iters = 188000
 max_epochs = 300

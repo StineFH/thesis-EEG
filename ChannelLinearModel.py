@@ -140,7 +140,7 @@ class EncoderBlock(nn.Module):
         self.batchNorm2 = nn.BatchNorm1d(no_patches)
         self.dropout = nn.Dropout(dropout)
 
-    def forward(self, x, PE, PE_r, mask=None):
+    def forward(self, x, PE, PE_r):
         # Attention part
         attn_out = self.TUPE_attn(x, PE, PE_r)
         x = x + self.dropout(attn_out)
@@ -158,18 +158,11 @@ class TransformerEncoder(nn.Module):
         super().__init__()
         self.layers = nn.ModuleList([EncoderBlock(**block_args) for _ in range(num_layers)])
 
-    def forward(self, x, PE, PE_r, mask=None):
+    def forward(self, x, PE, PE_r):
         for layer in self.layers:
-            x = layer(x, PE,PE_r, mask=mask)
+            x = layer(x, PE,PE_r)
         return x
 
-    def get_attention_maps(self, x, PE,PE_r, mask=None):
-        attention_maps = []
-        for idx, layer in enumerate(self.layers):
-            _, attn_map = layer.self_attn(x, PE,PE_r, mask=mask, return_attention=True)
-            attention_maps.append(attn_map)
-            x = layer(x)
-        return attention_maps
 
 ################################# Transformer #################################
 import torch.nn as nn
@@ -283,7 +276,6 @@ class ChiIndLinearTransformer(pl.LightningModule):
         max_iters=1000,
         dropout=0.0,
         input_dropout=0.0,
-        mask = None,
         only_before = False
     ):
         super().__init__()
@@ -338,17 +330,7 @@ class ChiIndLinearTransformer(pl.LightningModule):
             nn.Linear(self.hparams.output_dim,self.hparams.output_dim)
             )
     
-    @torch.no_grad()
-    def get_attention_maps(self, x, mask=None, add_positional_encoding=True):
-        """Function for extracting the attention matrices of the whole Transformer for a single batch.
-        Input arguments same as the forward pass.
-        """
-        x = self.input_net(x)
-        if add_positional_encoding:
-            x = self.positional_encoding(x)
-        attention_maps = self.transformer.get_attention_maps(x, mask=mask)
-        return attention_maps
-
+    
     def configure_optimizers(self):
         optimizer = optim.Adam(self.parameters(), lr=self.hparams.lr)
 
@@ -389,7 +371,7 @@ class ChiIndLinearTransformer(pl.LightningModule):
         PE_r = self.R_PE(self.patches, self.patches)
         #forward pass
         x = self.input_net(x)
-        x = self.transformer(x, PE, PE_r, mask=self.hparams.mask)
+        x = self.transformer(x, PE, PE_r)
         
         # linear model 
         x_l = torch.cat((x1, x2),dim=2)

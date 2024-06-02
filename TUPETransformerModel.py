@@ -143,7 +143,7 @@ class EncoderBlock(nn.Module):
         self.norm2 = nn.LayerNorm(embed_dim)
         self.dropout = nn.Dropout(dropout)
 
-    def forward(self, x, PE, mask=None):
+    def forward(self, x, PE):
         # Attention part
         attn_out = self.TUPE_attn(x, PE)
         x = x + self.dropout(attn_out)
@@ -161,19 +161,10 @@ class TransformerEncoder(nn.Module):
         super().__init__()
         self.layers = nn.ModuleList([EncoderBlock(**block_args) for _ in range(num_layers)])
 
-    def forward(self, x, PE, mask=None):
+    def forward(self, x, PE):
         for layer in self.layers:
-            x = layer(x, PE, mask=mask)
+            x = layer(x, PE)
         return x
-
-    def get_attention_maps(self, x, PE, mask=None):
-        attention_maps = []
-        for idx, layer in enumerate(self.layers):
-            print("Going into layer ", idx, "in TransformerEncoder")
-            _, attn_map = layer.self_attn(x, PE, mask=mask, return_attention=True)
-            attention_maps.append(attn_map)
-            x = layer(x)
-        return attention_maps
 
 ################################# Transformer #################################
 
@@ -218,7 +209,6 @@ class TUPEOverlappingTransformer(pl.LightningModule):
         max_iters=1000,
         dropout=0.0,
         input_dropout=0.0,
-        mask = None,
         only_before=True
     ):
         super().__init__()
@@ -262,17 +252,6 @@ class TUPEOverlappingTransformer(pl.LightningModule):
             nn.ReLU(),
             nn.Linear(self.hparams.output_dim,self.hparams.output_dim)
             )
-        
-    @torch.no_grad()
-    def get_attention_maps(self, x, mask=None, add_positional_encoding=True):
-        """Function for extracting the attention matrices of the whole Transformer for a single batch.
-        Input arguments same as the forward pass.
-        """
-        x = self.input_net(x)
-        if add_positional_encoding:
-            x = self.positional_encoding(x)
-        attention_maps = self.transformer.get_attention_maps(x, mask=mask)
-        return attention_maps
 
     def configure_optimizers(self):
         optimizer = optim.Adam(self.parameters(), lr=self.hparams.lr)
@@ -310,7 +289,7 @@ class TUPEOverlappingTransformer(pl.LightningModule):
         
         #forward pass
         x = self.input_net(x)
-        x = self.transformer(x, PE, mask=self.hparams.mask) # Might need to do something different with mask 
+        x = self.transformer(x, PE) 
         x=self.output_net(x)
 
         return x

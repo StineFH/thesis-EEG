@@ -383,7 +383,7 @@ class RelativeTUPETransformer(pl.LightningModule):
         
         #forward pass
         x = self.input_net(x)
-        x = self.transformer(x, PE, PE_r) # Might need to do something different with mask 
+        x = self.transformer(x, PE, PE_r) 
         x=self.output_net(x)
 
         return x

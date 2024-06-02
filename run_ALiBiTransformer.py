@@ -118,7 +118,6 @@ def runExperiment(
         max_iters=max_iters,
         dropout=0.2,
         input_dropout=0.2,
-        mask = None,
         TUPE = False) 
     early_stopping = EarlyStopping(monitor="val_loss", min_delta=0.00,
                                    patience=25, verbose=False, mode="min")
@@ -157,7 +156,7 @@ targetPts=96
 beforePts=512
 afterPts=512
 patch_size = 64
-step = 32
+step = 64
 
 sessionIds = ['001', '002', '003', '004']
 limit = 1875000 # Validation dataset size

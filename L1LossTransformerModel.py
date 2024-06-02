@@ -62,7 +62,7 @@ class EncoderBlock(nn.Module):
         self.norm2 = nn.LayerNorm(input_dim)
         self.dropout = nn.Dropout(dropout)
 
-    def forward(self, x, mask=None):
+    def forward(self, x):
         # Attention part
         attn_out = self.self_attn(x, x, x)[0] # output is tuple therefore [0]
         x = x + self.dropout(attn_out)
@@ -80,18 +80,10 @@ class TransformerEncoder(nn.Module):
         super().__init__()
         self.layers = nn.ModuleList([EncoderBlock(**block_args) for _ in range(num_layers)])
 
-    def forward(self, x, mask=None):
+    def forward(self, x):
         for layer in self.layers:
-            x = layer(x, mask=mask)
-        return x
-
-    def get_attention_maps(self, x, mask=None):
-        attention_maps = []
-        for layer in self.layers:
-            _, attn_map = layer.self_attn(x, mask=mask, return_attention=True)
-            attention_maps.append(attn_map)
             x = layer(x)
-        return attention_maps
+        return x
 
 ################################# Transformer #################################
 
@@ -136,8 +128,7 @@ class Transformer(pl.LightningModule):
         warmup=100,
         max_iters=1000,
         dropout=0.0,
-        input_dropout=0.0,
-        mask = None
+        input_dropout=0.0
     ):
         super().__init__()
         self.save_hyperparameters()
@@ -177,16 +168,6 @@ class Transformer(pl.LightningModule):
             nn.Linear(self.hparams.output_dim,self.hparams.output_dim)
             )
         
-    @torch.no_grad()
-    def get_attention_maps(self, x, mask=None, add_positional_encoding=True):
-        """Function for extracting the attention matrices of the whole Transformer for a single batch.
-        Input arguments same as the forward pass.
-        """
-        x = self.input_net(x)
-        if add_positional_encoding:
-            x = self.positional_encoding(x)
-        attention_maps = self.transformer.get_attention_maps(x, mask=mask)
-        return attention_maps
 
     def configure_optimizers(self):
         optimizer = optim.Adam(self.parameters(), lr=self.hparams.lr)
@@ -224,7 +205,7 @@ class Transformer(pl.LightningModule):
         x = self.input_net(x)
         x = self.positional_encoding(x)
         
-        x = self.transformer(x, mask=self.hparams.mask) # Might need to do something different with mask 
+        x = self.transformer(x)  
         x=self.output_net(x)
 
         return x

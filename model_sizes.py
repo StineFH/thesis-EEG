@@ -108,7 +108,6 @@ def runCurrentModel(model_dims, n_layers, warm_up, max_it, dl_train, dl_val):
         max_iters=max_it,
         dropout=0.2,
         input_dropout=0.2,
-        mask = None,
         only_before=False) 
     early_stopping = EarlyStopping(monitor="val_loss", min_delta=0.00,
                                    patience=25, verbose=False, mode="min")
@@ -188,9 +187,3 @@ if __name__ == '__main__':
         
     # torch.save(outputs, './test_plots/' + 'validation_loss_model_sizes'+ '.pt')
     
-    
-"""
-test loss for thes-90: 
-    {"CH-Indp": {"MAE": 7.651536464691162, "MSE": 117.03072357177734}}
-    
-"""
