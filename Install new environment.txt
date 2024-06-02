@@ -1,0 +1,17 @@
+# if you have not installed the solver libmamba run the following in terminal 
+conda install --channel=conda-forge --name=base conda-libmamba-solver
+
+# Go back to default solver 
+conda config --set solver classic
+
+####################################### New Environment created with #######################################
+conda create --solver=libmamba --override-channels --channel=conda-forge --name thesis-env-mne161 python=3.11.7 mne=1.6.1 mne-bids
+
+conda install conda-forge::pytorch-lightning
+# Same OSError: [WinError 182]
+
+# Running the following fixed the above error 
+conda install -c defaults intel-openmp -f
+
+# Installing Neptune 
+conda install -c conda-forge neptune
