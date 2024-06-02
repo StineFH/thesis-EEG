@@ -307,7 +307,7 @@ def VaryingContextSizePlot(labels, save):
     f.close()
     MAE_error = list(zip(*list(map(lambda x: x.values(), MAE.values()))))
     colors = {0: '#004488', 1: '#BB5566'}
-    x = ['128', '256', '512', '1024', '2048']
+    x = ['256', '512', '1024', '2048', '4096']
     
     fig, ax = plt.subplots(1, 1, figsize=set_size(width, fraction=0.85))
     plt.rcParams.update(tex_fonts)
@@ -316,8 +316,8 @@ def VaryingContextSizePlot(labels, save):
     plt.plot(x, MAE_error[0][5:], label=labels[1], color = colors[1])
     plt.plot(x, MAE_error[0][5:], marker = 'o', color = colors[1])
     # plt.title('Mean absolute prediction error')
-    plt.title('Varying context size')
-    plt.xlabel('Size of input before and after target')
+    plt.title('')
+    plt.xlabel('Context size')
     plt.xticks(x)
     plt.ylabel('Average test MAE')
     plt.legend()

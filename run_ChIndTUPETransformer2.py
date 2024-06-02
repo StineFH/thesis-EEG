@@ -76,7 +76,7 @@ def runExperiment(
                                         transform=mytransform
                                        )
     dl_train=torch.utils.data.DataLoader(ds_train, batch_size=batchSize, 
-                                         shuffle=True, num_workers=16)
+                                         shuffle=True, num_workers=24)
     
     print('Loading validation data, subject = ' + str(valIds))
     ds_val=du.EEG_dataset_from_paths(valPaths, beforePts=beforePts,afterPts=afterPts,
@@ -84,7 +84,7 @@ def runExperiment(
                                      preprocess=False,limit=limit_val,transform=mytransform
                                      )
     dl_val=torch.utils.data.DataLoader(ds_val, batch_size=batchSize,
-                                       num_workers=16)
+                                       num_workers=24)
     
     ######################## Make Neptune Logger ############################
     #https://docs.neptune.ai/api/neptune/#init_run
@@ -112,7 +112,7 @@ def runExperiment(
     transf_model = ChiIndTUPEOverlappingTransformer(
         context_size=beforePts+afterPts, 
         patch_size=patch_size,
-        step = int(patch_size/2),
+        step = step,
         output_dim=targetPts,
         model_dim=patch_size*2,
         num_heads = 16,
@@ -127,9 +127,9 @@ def runExperiment(
                                    patience=25, verbose=False, mode="min")
     
     trainer = pl.Trainer(logger=neptune_logger,
-                         accelerator='gpu', devices=2, # Devices = number of gpus 
+                         accelerator='gpu', devices=3, # Devices = number of gpus 
                          callbacks=[early_stopping],
-                         max_epochs=max_epochs,
+                         max_epochs=50,
                          log_every_n_steps=50)
     
     trainer.fit(transf_model, dl_train, dl_val)
@@ -161,11 +161,11 @@ targetPts=96
 beforePts=512
 afterPts=512
 patch_size = 64
-step = 64
+step = 32
 
 sessionIds = ['001', '002', '003', '004'] 
-limit = 625000 #1875000*(1/3) # Validation dataset size
-train_size = 2083333 #6250000*(1/3) # Train dataset size 
+limit = int(625000/2) #1875000*(1/3) # Validation dataset size
+train_size = int(2083333/2) #6250000*(1/3) # Train dataset size 
 batchSize= 3333 # 10000*(1/3)
 channelIdxs=list(range(0, 25))
 valSub=0
