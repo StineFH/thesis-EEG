@@ -90,7 +90,7 @@ def runExperiment(
     ######################## Make Neptune Logger ############################
     #https://docs.neptune.ai/api/neptune/#init_run
     
-    NEPTUNE_API_TOKEN = 'eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiJkZTFjOGZiMS01NDFjLTRlMzktOTBiYS0yNDcxM2UzNWM2ZTYifQ=='
+    NEPTUNE_API_TOKEN = '' # Insert neptune api token 
 
     neptune_logger = pl.loggers.NeptuneLogger(
         api_key = NEPTUNE_API_TOKEN,
