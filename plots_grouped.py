@@ -556,33 +556,31 @@ if __name__ == '__main__':
 
 
     ############################ Visualize Weights ############################
-    model = get_model('vanilla', 'THES-70', 512, 512, 96)
+    model = get_model('Ch-Linear', 'THES-117', 512, 512, 96)
 
     model_weights = model.state_dict()
     model_weights['linearModel.weight'].shape
     model_weights['output_net.6.weight'].shape
 
-    # Linear 
-    lin_max = torch.max(model_weights['linear_regression.linear.weight'])
-    lin_min = torch.min(model_weights['linear_regression.linear.weight'])
-    lin_norm = (model_weights['linear_regression.linear.weight'] - lin_min) / (lin_max-lin_min)
-    
-    #CH-Linear
+    # # Linear 
     # lin_max = torch.max(model_weights['linearModel.weight'])
     # lin_min = torch.min(model_weights['linearModel.weight'])
     # lin_norm = (model_weights['linearModel.weight'] - lin_min) / (lin_max-lin_min)
-    # torch.max(lin_norm[:,45:50])
-    # torch.min(lin_norm[:,45:50])
-    # torch.median(lin_norm[:,45:50])
     
+    #CH-Linear
+    lin_max = torch.max(model_weights['linearModel.weight'])
+    lin_min = torch.min(model_weights['linearModel.weight'])
+    lin_norm = (model_weights['linearModel.weight'] - lin_min) / (lin_max-lin_min)
+
+    lin_norm = model_weights['linearModel.weight']
     # Visualize Linear model weights
     fig, (ax1, ax2) = plt.subplots(2, 1, sharex =True,constrained_layout = True,
                             figsize=(4.5, 3.6))
     
     plt.rcParams.update(tex_fonts)  
-    lin1 = ax1.imshow(lin_norm[:,0:512], norm = None, cmap='grey')
+    lin1 = ax1.imshow(lin_norm[:,0:512], norm = None)
     plt.colorbar(lin1, location='top')
-    lin2 = ax2.imshow(lin_norm[:,512:], norm = None, cmap='grey')
+    lin2 = ax2.imshow(lin_norm[:,512:], norm = None)
     plt.colorbar(lin2, location='top')
     fig.suptitle('Normalized weights of the Linear model')
     plt.setp(ax1, yticks=range(1, targetPts+1, 30))
